@@ -1,0 +1,56 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>R1 Weather</title><link rel="stylesheet" href="mock.css"></head>
+<body>
+<svg class="cyd" viewBox="0 0 320 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <path id="plane" d="M0,-11 C1.2,-11 1.6,-9 1.6,-7 L1.6,-2 L10,3 L10,5 L1.6,2.5 L1.2,8 L4,10 L4,11.5 L0,10.5 L-4,11.5 L-4,10 L-1.2,8 L-1.6,2.5 L-10,5 L-10,3 L-1.6,-2 L-1.6,-7 C-1.6,-9 -1.2,-11 0,-11 Z"/>
+    <g id="sun"><circle r="9" fill="var(--sun)"/>
+      <g stroke="var(--sun)" stroke-width="2.5" stroke-linecap="round">
+        <line x1="0" y1="-13" x2="0" y2="-17"/><line x1="0" y1="13" x2="0" y2="17"/>
+        <line x1="-13" y1="0" x2="-17" y2="0"/><line x1="13" y1="0" x2="17" y2="0"/>
+        <line x1="9" y1="-9" x2="12" y2="-12"/><line x1="-9" y1="9" x2="-12" y2="12"/>
+        <line x1="9" y1="9" x2="12" y2="12"/><line x1="-9" y1="-9" x2="-12" y2="-12"/></g></g>
+    <g id="cloud" fill="var(--cloud)"><circle cx="-6" cy="2" r="6"/><circle cx="2" cy="-2" r="8"/><circle cx="9" cy="3" r="5"/><rect x="-12" y="2" width="26" height="6" rx="3"/></g>
+  </defs>
+
+  <!-- Header -->
+  <text x="10" y="16" class="f2 c-muted">THU  SEP 24</text>
+  <text x="298" y="16" class="f2 c-muted end">Gilbert</text>
+  <circle cx="307" cy="11" r="3" fill="var(--ok)"/>
+
+  <!-- Current conditions -->
+  <g transform="translate(40,62) scale(1.5)"><use href="#sun" transform="translate(-3,-4)"/><use href="#cloud" transform="translate(6,6) scale(0.8)"/></g>
+  <text x="80" y="80" class="fsb24 c-text">94°</text>
+  <text x="82" y="102" class="fs9 c-muted">Mostly sunny</text>
+
+  <!-- Clock -->
+  <text x="282" y="62" class="fsb18 c-text end">3:42</text>
+  <text x="286" y="62" class="f2 c-muted">PM</text>
+  <text x="310" y="84" class="f2 c-muted end">Sunset 6:20</text>
+
+  <!-- Detail cells -->
+  <g>
+    <text x="10"  y="124" class="glcd c-dim">FEELS</text>   <text x="10"  y="142" class="fsb9 c-text">97°</text>
+    <text x="88"  y="124" class="glcd c-dim">HI / LO</text> <text x="88"  y="142" class="fsb9 c-text">99°/76°</text>
+    <text x="166" y="124" class="glcd c-dim">HUMIDITY</text><text x="166" y="142" class="fsb9 c-text">18%</text>
+    <text x="244" y="124" class="glcd c-dim">WIND</text>    <text x="244" y="142" class="fsb9 c-text">NW 7</text>
+  </g>
+
+  <!-- Hourly strip -->
+  <rect x="6" y="152" width="308" height="56" rx="6" fill="var(--panel)"/>
+  <g class="f2">
+    <g transform="translate(31,0)"><text y="167" class="c-muted mid">4PM</text><use href="#sun" transform="translate(0,182) scale(0.55)"/><text y="203" class="c-text mid" font-weight="700">95°</text></g>
+    <g transform="translate(82,0)"><text y="167" class="c-muted mid">5PM</text><use href="#sun" transform="translate(0,182) scale(0.55)"/><text y="203" class="c-text mid" font-weight="700">93°</text></g>
+    <g transform="translate(133,0)"><text y="167" class="c-muted mid">6PM</text><use href="#cloud" transform="translate(0,182) scale(0.7)"/><text y="203" class="c-text mid" font-weight="700">90°</text></g>
+    <g transform="translate(184,0)"><text y="167" class="c-muted mid">7PM</text><use href="#cloud" transform="translate(0,182) scale(0.7)"/><text y="203" class="c-text mid" font-weight="700">86°</text></g>
+    <g transform="translate(235,0)"><text y="167" class="c-muted mid">8PM</text><use href="#cloud" transform="translate(-2,180) scale(0.7)"/><g fill="var(--rain)"><rect x="-4" y="186" width="2" height="4"/><rect x="1" y="187" width="2" height="4"/></g><text y="203" class="c-text mid" font-weight="700">83°</text></g>
+    <g transform="translate(286,0)"><text y="167" class="c-muted mid">9PM</text><use href="#cloud" transform="translate(0,182) scale(0.7)"/><text y="203" class="c-text mid" font-weight="700">81°</text></g>
+  </g>
+
+  <!-- Traffic chip -->
+  <rect x="6" y="214" width="308" height="22" rx="11" fill="var(--panel2)"/>
+  <use href="#plane" transform="translate(22,225) rotate(45) scale(0.6)" fill="var(--plane)"/>
+  <text x="36" y="229" class="f2 c-text">4 aircraft nearby</text>
+  <text x="304" y="229" class="f2 c-muted end">closest 5.2 mi W</text>
+</svg>
+</body></html>

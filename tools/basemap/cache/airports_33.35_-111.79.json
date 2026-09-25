@@ -1,0 +1,638 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API 0.7.62.11 87bfad18",
+  "osm3s": {
+    "timestamp_osm_base": "2026-09-25T04:42:44Z",
+    "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
+  },
+  "elements": [
+
+{
+  "type": "node",
+  "id": 7167572694,
+  "lat": 32.9548889,
+  "lon": -111.7668333,
+  "tags": {
+    "aerodrome:awos3": "132.175 MHz",
+    "aerodrome:ctaf": "122.700 MHz",
+    "aerodrome:type": "public",
+    "aerodrome:unicom": "122.700 MHz",
+    "aeroway": "aerodrome",
+    "closest_town": "Casa Grande",
+    "description": "CGZ Airport Reference Point",
+    "ele": "446",
+    "ele:ft": "1464.1",
+    "faa:LFSN": "00642.9*A",
+    "gnis:feature_id": "45323",
+    "iata": "CGZ",
+    "icao": "KCGZ",
+    "name": "Casa Grande Municipal Airport",
+    "owner": "City of Casa Grande",
+    "phone": "+1 520 421 8625",
+    "source": "FAA",
+    "source:position": "FAA",
+    "source:position:date": "2020-01-02",
+    "source:url": "https://adip.faa.gov/agis/public/#/airportData/CGZ",
+    "variation": "12 E 2000",
+    "wikidata": "Q1962644",
+    "wikipedia": "en:Casa Grande Municipal Airport"
+  }
+},
+{
+  "type": "node",
+  "id": 7185841378,
+  "lat": 32.9905522,
+  "lon": -111.9189155,
+  "tags": {
+    "aerodrome:awos3": "126.9 MHz",
+    "aerodrome:ctaf": "122.900 MHz",
+    "aerodrome:type": "public",
+    "aeroway": "aerodrome",
+    "description": "A39 Airport Reference Point",
+    "ele": "367.1",
+    "faa": "A39",
+    "faa:LFSN": "00751.55*A",
+    "gnis:feature_id": "2651001",
+    "ifr": "no",
+    "name": "Ak-Chin Regional Airport",
+    "owner": "Ak-Chin Indian Community",
+    "phone": "+1 520 568 1683",
+    "source": "FAA",
+    "source:date": "2020-01-30",
+    "source:position": "Airport Layout Plan",
+    "source:position:date": "2016",
+    "source:position:note": "coordinates and elevations converted from NAD83/NAVD88 to ITRF2008 using NOAA VDatum",
+    "source:position:url": "https://apps.azdot.gov/files/Airports/ALP_PDF/Ak-Chin/Ak-Chin-ALP-2016-unsigned.pdf",
+    "source:url": "https://adip.faa.gov/agis/public/#/airportData/A39",
+    "variation": "12 E 1995",
+    "wikidata": "Q7186971",
+    "wikipedia": "en:Ak-Chin Regional Airport"
+  }
+},
+{
+  "type": "way",
+  "id": 201715469,
+  "center": {
+    "lat": 33.6899439,
+    "lon": -112.0826881
+  },
+  "tags": {
+    "addr:city": "Phoenix",
+    "addr:postcode": "85024",
+    "addr:state": "AZ",
+    "aerodrome:type": "airfield",
+    "aeroway": "aerodrome",
+    "ele": "444",
+    "faa": "DVT",
+    "gnis:feature_id": "45459",
+    "iata": "DVT",
+    "icao": "KDVT",
+    "name": "Phoenix Deer Valley Airport",
+    "operator": "City of Phoenix",
+    "wikidata": "Q2088517",
+    "wikipedia": "en:Phoenix Deer Valley Airport"
+  }
+},
+{
+  "type": "way",
+  "id": 220525227,
+  "center": {
+    "lat": 33.6221642,
+    "lon": -111.9112261
+  },
+  "tags": {
+    "addr:city": "Scottsdale",
+    "addr:housenumber": "15000",
+    "addr:postcode": "85260",
+    "addr:state": "AZ",
+    "addr:street": "North Airport Drive",
+    "aeroway": "aerodrome",
+    "closest_town": "Scottsdale, AZ",
+    "ele": "445",
+    "faa": "SDL",
+    "gnis:feature_id": "15024",
+    "iata": "SCF",
+    "icao": "KSDL",
+    "name": "Scottsdale Airport",
+    "ref": "SCF",
+    "wikidata": "Q17567",
+    "wikipedia": "en:Scottsdale Airport"
+  }
+},
+{
+  "type": "way",
+  "id": 224554927,
+  "center": {
+    "lat": 33.3055341,
+    "lon": -111.6568817
+  },
+  "tags": {
+    "aeroway": "aerodrome",
+    "alt_name": "Williams Gateway Airport",
+    "faa": "KIWA",
+    "iata": "AZA",
+    "icao": "KIWA",
+    "name": "Mesa Gateway Airport",
+    "operator": "Phoenix Mesa Gateway Airport Authority",
+    "source": "Wikipedia",
+    "source_ref": "geonames.usgs.gov",
+    "website": "http://www.phxmesagateway.org/",
+    "wikidata": "Q493759",
+    "wikipedia": "en:Mesa Gateway Airport"
+  }
+},
+{
+  "type": "way",
+  "id": 226696186,
+  "center": {
+    "lat": 33.2088590,
+    "lon": -111.6172038
+  },
+  "tags": {
+    "access": "private",
+    "aeroway": "aerodrome",
+    "airpark": "yes",
+    "contact:phone": "+1 480 967-7182",
+    "contact:website": "https://azpegasusairpark.com",
+    "ele": "442",
+    "faa": "5AZ3",
+    "name": "Pegasus Airpark",
+    "operator": "Pegasus Airpark Flight Association",
+    "start_date": "1998-05",
+    "wikidata": "Q7160567",
+    "wikipedia": "en:Pegasus Airpark"
+  }
+},
+{
+  "type": "way",
+  "id": 256802232,
+  "center": {
+    "lat": 33.2698653,
+    "lon": -111.8099879
+  },
+  "tags": {
+    "addr:city": "Chandler",
+    "addr:housenumber": "2380",
+    "addr:postcode": "85286",
+    "addr:state": "AZ",
+    "addr:street": "South Stinson Way",
+    "aeroway": "aerodrome",
+    "ele": "377",
+    "faa": "CHD",
+    "gnis:feature_id": "45331",
+    "icao": "KCHD",
+    "name": "Chandler Municipal Airport",
+    "ref": "CHD",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q1835578",
+    "wikipedia": "en:Chandler Municipal Airport"
+  }
+},
+{
+  "type": "way",
+  "id": 316332165,
+  "center": {
+    "lat": 33.1122878,
+    "lon": -112.2687900
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "barrier": "fence",
+    "ele": "381",
+    "faa": "1AZ0",
+    "gnis:feature_id": "45419",
+    "name": "Mobile Airport",
+    "operator": "Lufthansa Aviation Training USA, INC",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q49748252",
+    "wikipedia": "en:Mobile, Arizona"
+  }
+},
+{
+  "type": "way",
+  "id": 550082815,
+  "center": {
+    "lat": 33.2987910,
+    "lon": -111.9164705
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "358",
+    "faa": "P19",
+    "gnis:feature_id": "45326",
+    "name": "Stellar Air Park",
+    "operator": "Stellar Runway Utilizers Asssociation, INC",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q7607176",
+    "wikipedia": "en:Stellar Airpark"
+  }
+},
+{
+  "type": "way",
+  "id": 551528051,
+  "center": {
+    "lat": 32.9894160,
+    "lon": -112.0240339
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "alt_name": "Farms Airport",
+    "ele": "372",
+    "faa": "41AZ",
+    "gnis:feature_id": "45400",
+    "name": "Ak Chin Community Airport",
+    "operator": "Ak Chin Indian Community",
+    "wikidata": "Q49744840"
+  }
+},
+{
+  "type": "way",
+  "id": 593591299,
+  "center": {
+    "lat": 33.4590625,
+    "lon": -111.7273755
+  },
+  "tags": {
+    "addr:city": "Mesa",
+    "addr:housenumber": "4800",
+    "addr:postcode": "85215",
+    "addr:state": "AZ",
+    "addr:street": "East Falcon Drive",
+    "aeroway": "aerodrome",
+    "ele": "420",
+    "faa": "FFZ",
+    "gnis:feature_id": "45408",
+    "iata": "MSC",
+    "icao": "KFFZ",
+    "name": "Falcon Field",
+    "operator": "City of Mesa",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q5431746",
+    "wikipedia": "en:Falcon Field (Arizona)"
+  }
+},
+{
+  "type": "way",
+  "id": 593591300,
+  "center": {
+    "lat": 32.9945289,
+    "lon": -112.2750572
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "442",
+    "faa": "AZ31",
+    "gnis:feature_id": "45396",
+    "name": "Serene Field",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q74840754"
+  }
+},
+{
+  "type": "way",
+  "id": 593591301,
+  "center": {
+    "lat": 33.0175044,
+    "lon": -112.2785206
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "429",
+    "faa": "AZ13",
+    "gnis:feature_id": "45395",
+    "name": "Schu Ranch Airport",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q49750645"
+  }
+},
+{
+  "type": "way",
+  "id": 593591308,
+  "center": {
+    "lat": 33.3498964,
+    "lon": -112.1235252
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "348",
+    "faa": "AZ90",
+    "gnis:feature_id": "45386",
+    "name": "Hangar Haciendas Airport",
+    "operator": "Hangar Haciendas HOA",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q49746639"
+  }
+},
+{
+  "type": "way",
+  "id": 593614307,
+  "center": {
+    "lat": 32.9819527,
+    "lon": -112.2868582
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "455",
+    "faa": "0AZ4",
+    "gnis:feature_id": "45418",
+    "name": "Flying Bucket Ranch Airport",
+    "operator": "Flying Bucket, LLC",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q49746265"
+  }
+},
+{
+  "type": "way",
+  "id": 595939877,
+  "center": {
+    "lat": 33.0037430,
+    "lon": -112.2762193
+  },
+  "tags": {
+    "access": "private",
+    "aeroway": "aerodrome",
+    "ele": "437",
+    "faa": "AZ78",
+    "gnis:feature_id": "2651010",
+    "name": "Arizona Bay Airport",
+    "wikidata": "Q74840752"
+  }
+},
+{
+  "type": "way",
+  "id": 595939879,
+  "center": {
+    "lat": 33.5990158,
+    "lon": -111.6060834
+  },
+  "tags": {
+    "access": "private",
+    "aeroway": "aerodrome",
+    "ele": "524",
+    "faa": "AZ25",
+    "gnis:feature_id": "2651005",
+    "name": "Goldfield Ranch Airport",
+    "operator": "Goldfield Ranch Realty Holdings LLC",
+    "source": "ourairports.com",
+    "wikidata": "Q74840952"
+  }
+},
+{
+  "type": "way",
+  "id": 596014087,
+  "center": {
+    "lat": 33.0535284,
+    "lon": -112.1735275
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "377",
+    "faa": "AZ43",
+    "gnis:feature_id": "23713",
+    "name": "Hidden Valley Airstrip",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q74840748"
+  }
+},
+{
+  "type": "way",
+  "id": 596014102,
+  "center": {
+    "lat": 33.0852144,
+    "lon": -112.1624776
+  },
+  "tags": {
+    "addr:city": "Maricopa",
+    "addr:country": "US",
+    "addr:housenumber": "22548",
+    "addr:state": "AZ",
+    "addr:street": "North Sailport Way",
+    "aeroway": "aerodrome",
+    "ele": "387",
+    "faa": "E68",
+    "gnis:feature_id": "45402",
+    "internet_access": "wlan",
+    "internet_access:fee": "no",
+    "name": "Estrella Sailport",
+    "operator": "Arizona Soaring, INC",
+    "phone": "+1-520-568-2318",
+    "source_ref": "geonames.usgs.gov",
+    "website": "https://azsoaring.com/",
+    "wheelchair": "limited",
+    "wikidata": "Q10844895",
+    "wikipedia": "en:Estrella Sailport"
+  }
+},
+{
+  "type": "way",
+  "id": 596014104,
+  "center": {
+    "lat": 33.0540493,
+    "lon": -112.1476912
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "369",
+    "faa": "2AZ4",
+    "gnis:feature_id": "45401",
+    "name": "Millar Airport",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q49748157"
+  }
+},
+{
+  "type": "way",
+  "id": 596014105,
+  "center": {
+    "lat": 33.0803227,
+    "lon": -111.9827528
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "359",
+    "faa": "3AZ2",
+    "gnis:feature_id": "45399",
+    "name": "University of Arizona Maricopa Agricultural Center Airport",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q49751590"
+  }
+},
+{
+  "type": "way",
+  "id": 596014106,
+  "center": {
+    "lat": 33.0790990,
+    "lon": -112.1219138
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "363",
+    "faa": "40AZ",
+    "gnis:feature_id": "45398",
+    "name": "Boulais Ranch Airport",
+    "operator": "Stageline Ranches, INC",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q49745255"
+  }
+},
+{
+  "type": "way",
+  "id": 596014111,
+  "center": {
+    "lat": 32.9353022,
+    "lon": -111.4837513
+  },
+  "tags": {
+    "access": "private",
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "446",
+    "faa": "37AZ",
+    "gnis:feature_id": "45340",
+    "name": "Sarita Airport",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q49750556"
+  }
+},
+{
+  "type": "way",
+  "id": 596014112,
+  "center": {
+    "lat": 32.9335528,
+    "lon": -111.4277991
+  },
+  "tags": {
+    "addr:state": "AZ",
+    "aeroway": "aerodrome",
+    "ele": "477",
+    "faa": "P08",
+    "gnis:feature_id": "45339",
+    "name": "Coolidge Municipal Airport",
+    "operator": "City of Coolidge",
+    "source_ref": "geonames.usgs.gov",
+    "wikidata": "Q1655669",
+    "wikipedia": "en:Coolidge Municipal Airport"
+  }
+},
+{
+  "type": "way",
+  "id": 888038187,
+  "center": {
+    "lat": 33.4176725,
+    "lon": -111.8388635
+  },
+  "tags": {
+    "access": "private",
+    "aeroway": "aerodrome",
+    "barrier": "fence",
+    "closest_town": "Mesa, AZ",
+    "ele": "347.29",
+    "faa": "08AZ",
+    "faa:LFSN": "00729.21*H",
+    "ifr": "no",
+    "name": "Mesa Police Heliport",
+    "note": "FAA estimated coordinates are well off, approximately 1 furlong east of actual helipad.",
+    "operator": "Mesa Police Department",
+    "operator:type": "government",
+    "owner": "City of Mesa Police Department",
+    "phone": "+1 480 644 4344",
+    "source": "FAA",
+    "source:date": "2020-01-30",
+    "source:note": "coordinates and elevations converted from NAD83/NAVD88 to ITRF2008 using NOAA VDatum",
+    "source:position": "Bing",
+    "source:url": "https://enasr.faa.gov/eNASR/nasr/Current/Airport/22138",
+    "variation": "12 E 2000",
+    "wikidata": "Q74840773"
+  }
+},
+{
+  "type": "way",
+  "id": 1101897867,
+  "center": {
+    "lat": 33.2564095,
+    "lon": -111.5172023
+  },
+  "tags": {
+    "aeroway": "aerodrome",
+    "faa": "AZ38"
+  }
+},
+{
+  "type": "way",
+  "id": 1395368265,
+  "center": {
+    "lat": 33.5301764,
+    "lon": -112.2163494
+  },
+  "tags": {
+    "addr:city": "Glendale",
+    "addr:housenumber": "7308",
+    "addr:postcode": "85303",
+    "addr:state": "AZ",
+    "addr:street": "West Griffin Lane",
+    "aeroway": "aerodrome",
+    "faa": "AZ79",
+    "name": "Airscrew Performance Flightpark",
+    "wikidata": "Q74840693"
+  }
+},
+{
+  "type": "relation",
+  "id": 8367318,
+  "center": {
+    "lat": 33.4327720,
+    "lon": -112.0070408
+  },
+  "tags": {
+    "aerodrome": "international",
+    "aerodrome:type": "international",
+    "aeroway": "aerodrome",
+    "contact:facebook": "https://www.facebook.com/PHXSkyHarbor",
+    "contact:instagram": "https://www.instagram.com/phxskyharbor/",
+    "contact:linkedin": "https://www.linkedin.com/company/phoenix-sky-harbor-international-airport",
+    "contact:pinterest": "https://www.linkedin.com/company/phoenix-sky-harbor-international-airport",
+    "contact:twitter": "https://twitter.com/PHXSkyHarbor",
+    "contact:youtube": "https://youtube.com/channel/UCE3zmZRIDcJlHLziVB0WWuQ",
+    "ele": "346",
+    "faa": "PHX",
+    "fixme": "Doesn't include the Terminal 3 skytrain",
+    "iata": "PHX",
+    "icao": "KPHX",
+    "name": "Phoenix Sky Harbor International Airport",
+    "name:en": "Phoenix Sky Harbor International Airport",
+    "name:eo": "Fenikso Ĉielo Haveno Internacia Flughaveno",
+    "name:ja": "フェニックス・スカイハーバー国際空港",
+    "operator": "Phoenix Airport System",
+    "owner": "City of Phoenix",
+    "source": "wikipedia",
+    "type": "multipolygon",
+    "website": "https://skyharbor.com",
+    "wikidata": "Q912916",
+    "wikipedia": "en:Phoenix Sky Harbor International Airport"
+  }
+}
+
+  ]
+}

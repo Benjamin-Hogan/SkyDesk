@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>R1 Plane GA</title><link rel="stylesheet" href="mock.css"></head>
+<body>
+<svg class="cyd" viewBox="0 0 320 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <path id="plane" d="M0,-11 C1.2,-11 1.6,-9 1.6,-7 L1.6,-2 L10,3 L10,5 L1.6,2.5 L1.2,8 L4,10 L4,11.5 L0,10.5 L-4,11.5 L-4,10 L-1.2,8 L-1.6,2.5 L-10,5 L-10,3 L-1.6,-2 L-1.6,-7 C-1.6,-9 -1.2,-11 0,-11 Z"/>
+    <marker id="arr" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="5" markerHeight="5" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--plane)"/></marker>
+  </defs>
+
+  <rect x="0" y="0" width="320" height="34" fill="var(--panel)"/>
+  <rect x="0" y="0" width="4" height="34" fill="var(--plane)"/>
+  <text x="12" y="25" class="fsb12 c-text">N172SP</text>
+  <text x="308" y="22" class="f2 c-muted end">Private</text>
+
+  <!-- Dome: plane SW at 31 deg, moving E -->
+  <g transform="translate(84,118)">
+    <circle r="72" fill="var(--panel)" stroke="var(--hair)" stroke-width="1.5"/>
+    <circle r="48" fill="none" stroke="var(--hair)" stroke-dasharray="2 3"/>
+    <circle r="24" fill="none" stroke="var(--hair)" stroke-dasharray="2 3"/>
+    <line x1="0" y1="-72" x2="0" y2="72" stroke="var(--hair)"/>
+    <line x1="-72" y1="0" x2="72" y2="0" stroke="var(--hair)"/>
+    <circle r="2" fill="var(--muted)"/>
+    <path d="M -38.2,61.1 A 72 72 0 0 1 -61.1,38.2" fill="none" stroke="var(--plane)" stroke-width="5"/>
+    <text x="0" y="-58" class="f2 c-text mid" font-weight="700">N</text>
+    <text x="62" y="5" class="f2 c-muted mid">E</text>
+    <text x="0" y="68" class="f2 c-muted mid">S</text>
+    <text x="-62" y="5" class="f2 c-muted mid">W</text>
+    <line x1="-33.5" y1="33.5" x2="-14" y2="30" stroke="var(--plane)" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#arr)"/>
+    <use href="#plane" transform="translate(-33.5,33.5) rotate(80) scale(0.8)" fill="var(--plane)"/>
+  </g>
+
+  <text x="170" y="54" class="glcd c-dim">LOOK</text>
+  <text x="168" y="92" class="fsb24 c-plane">SW</text>
+  <text x="312" y="92" class="fsb18 c-text end">31°</text>
+  <text x="170" y="110" class="f2 c-muted">up · about 3 fists</text>
+  <line x1="170" y1="120" x2="312" y2="120" stroke="var(--hair)"/>
+
+  <text x="170" y="146" class="fsb12 c-muted">No route</text>
+  <text x="170" y="164" class="f2 c-dim">Private / GA flight</text>
+  <text x="170" y="186" class="f2 c-text">Cessna 172 Skyhawk</text>
+
+  <rect x="0" y="200" width="320" height="40" fill="var(--panel)"/>
+  <g>
+    <text x="10"  y="213" class="glcd c-dim">ALT  ▼</text>  <text x="10"  y="233" class="fsb9 c-text">2,800</text>
+    <text x="90"  y="213" class="glcd c-dim">SPEED</text>   <text x="90"  y="233" class="fsb9 c-text">118</text><text x="124" y="233" class="f2 c-muted">mph</text>
+    <text x="170" y="213" class="glcd c-dim">DIST</text>    <text x="170" y="233" class="fsb9 c-text">0.6</text><text x="197" y="233" class="f2 c-muted">mi</text>
+    <text x="250" y="213" class="glcd c-dim">HEADING</text> <text x="250" y="233" class="fsb9 c-text">E</text>
+  </g>
+</svg>
+</body></html>

@@ -1,0 +1,45 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>R1 Weather degraded</title><link rel="stylesheet" href="mock.css"></head>
+<body>
+<svg class="cyd" viewBox="0 0 320 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <path id="plane" d="M0,-11 C1.2,-11 1.6,-9 1.6,-7 L1.6,-2 L10,3 L10,5 L1.6,2.5 L1.2,8 L4,10 L4,11.5 L0,10.5 L-4,11.5 L-4,10 L-1.2,8 L-1.6,2.5 L-10,5 L-10,3 L-1.6,-2 L-1.6,-7 C-1.6,-9 -1.2,-11 0,-11 Z"/>
+    <g id="moon"><circle r="9" fill="#E8E3C8"/><circle cx="5" cy="-4" r="8" fill="var(--bg)"/></g>
+    <g id="cloud" fill="var(--cloud)"><circle cx="-6" cy="2" r="6"/><circle cx="2" cy="-2" r="8"/><circle cx="9" cy="3" r="5"/><rect x="-12" y="2" width="26" height="6" rx="3"/></g>
+  </defs>
+
+  <text x="10" y="16" class="f2 c-muted">THU  SEP 24</text>
+  <text x="298" y="16" class="f2 c-warn end">Updated 47m ago</text>
+  <circle cx="307" cy="11" r="3" fill="var(--warn)"/>
+
+  <g transform="translate(40,62) scale(1.5)"><use href="#moon" transform="translate(-4,-4)"/><use href="#cloud" transform="translate(6,6) scale(0.8)"/></g>
+  <text x="80" y="80" class="fsb24 c-text">77°</text>
+  <text x="82" y="102" class="fs9 c-muted">Partly cloudy</text>
+
+  <text x="282" y="62" class="fsb18 c-text end">9:18</text>
+  <text x="286" y="62" class="f2 c-muted">PM</text>
+  <text x="310" y="84" class="f2 c-muted end">Sunrise 6:17</text>
+
+  <g>
+    <text x="10"  y="124" class="glcd c-dim">FEELS</text>   <text x="10"  y="142" class="fsb9 c-text">77°</text>
+    <text x="88"  y="124" class="glcd c-dim">HI / LO</text> <text x="88"  y="142" class="fsb9 c-text">86°/72°</text>
+    <text x="166" y="124" class="glcd c-dim">HUMIDITY</text><text x="166" y="142" class="fsb9 c-text">49%</text>
+    <text x="244" y="124" class="glcd c-dim">WIND</text>    <text x="244" y="142" class="fsb9 c-text">N 4</text>
+  </g>
+
+  <rect x="6" y="152" width="308" height="56" rx="6" fill="var(--panel)"/>
+  <g class="f2">
+    <g transform="translate(31,0)"><text y="167" class="c-muted mid">10PM</text><use href="#moon" transform="translate(0,182) scale(0.6)"/><text y="203" class="c-text mid" font-weight="700">74°</text></g>
+    <g transform="translate(82,0)"><text y="167" class="c-muted mid">11PM</text><use href="#moon" transform="translate(0,182) scale(0.6)"/><text y="203" class="c-text mid" font-weight="700">72°</text></g>
+    <g transform="translate(133,0)"><text y="167" class="c-muted mid">12AM</text><use href="#moon" transform="translate(0,182) scale(0.6)"/><text y="203" class="c-text mid" font-weight="700">71°</text></g>
+    <g transform="translate(184,0)"><text y="167" class="c-muted mid">1AM</text><use href="#moon" transform="translate(0,182) scale(0.6)"/><text y="203" class="c-text mid" font-weight="700">70°</text></g>
+    <g transform="translate(235,0)"><text y="167" class="c-muted mid">2AM</text><use href="#moon" transform="translate(0,182) scale(0.6)"/><text y="203" class="c-text mid" font-weight="700">70°</text></g>
+    <g transform="translate(286,0)"><text y="167" class="c-muted mid">3AM</text><use href="#moon" transform="translate(0,182) scale(0.6)"/><text y="203" class="c-text mid" font-weight="700">69°</text></g>
+  </g>
+
+  <rect x="6" y="214" width="308" height="22" rx="11" fill="var(--panel2)"/>
+  <use href="#plane" transform="translate(22,225) rotate(45) scale(0.6)" fill="var(--dim)"/>
+  <text x="36" y="229" class="f2 c-warn">Radar offline</text>
+  <text x="304" y="229" class="f2 c-muted end">retrying in 30s</text>
+</svg>
+</body></html>

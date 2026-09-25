@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>R1 Boot error</title><link rel="stylesheet" href="mock.css"></head>
+<body>
+<svg class="cyd" viewBox="0 0 320 240" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <path id="plane" d="M0,-11 C1.2,-11 1.6,-9 1.6,-7 L1.6,-2 L10,3 L10,5 L1.6,2.5 L1.2,8 L4,10 L4,11.5 L0,10.5 L-4,11.5 L-4,10 L-1.2,8 L-1.6,2.5 L-10,5 L-10,3 L-1.6,-2 L-1.6,-7 C-1.6,-9 -1.2,-11 0,-11 Z"/>
+  </defs>
+
+  <use href="#plane" transform="translate(94,44) rotate(45) scale(1.3)" fill="var(--plane)"/>
+  <text x="114" y="56" class="fsb18 c-text">SkyDesk</text>
+  <text x="160" y="76" class="glcd c-dim mid">v1.0.0</text>
+
+  <rect x="30" y="92" width="260" height="100" rx="8" fill="var(--panel)"/>
+  <g class="f2">
+    <text x="46" y="114" class="c-err" font-weight="700">✕</text><text x="64" y="114" class="c-text">Can't join "HomeNet"</text>
+    <text x="64" y="132" class="c-muted">Retrying in 12 s  (attempt 3)</text>
+    <text x="46" y="156" class="c-dim">○</text><text x="64" y="156" class="c-dim">Clock</text>
+    <text x="46" y="174" class="c-dim">○</text><text x="64" y="174" class="c-dim">Weather · Radar</text>
+  </g>
+
+  <text x="160" y="212" class="f2 c-muted mid">Check WIFI_SSID / PASSWORD in secrets.h</text>
+  <text x="160" y="230" class="f2 c-dim mid">2.4 GHz networks only</text>
+</svg>
+</body></html>
