@@ -5,6 +5,8 @@
 #include "app_state.h"
 
 bool weatherFetch(Weather &w);
+// Why the last weatherFetch failed ("" after a success) - shown on screen.
+const char *weatherLastError();
 
 // WMO code -> icon kind + label (used by the UI).
 enum class WxKind : uint8_t { Clear, Partly, Cloud, Fog, Drizzle, Rain, Snow, Storm };

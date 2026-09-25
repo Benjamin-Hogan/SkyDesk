@@ -12,6 +12,8 @@ int      g_lastMinute = -1;
 bool     g_lastStale = false;
 char     g_chip[64] = "";
 char     g_date[20] = "";
+char     g_cue[32] = "";              // the rain cue on screen ("" = none)
+uint32_t g_radarVer = UINT32_MAX;
 
 bool isStale(const Weather &w) {
   if (!w.valid) return true;
@@ -85,10 +87,26 @@ void drawBody(const Weather &w) {
   if (w.valid) {
     drawWxIcon(g, 40, 62, 1.5f, wxKind(w.code), w.isDay, COL_BG);
     drawDegrees(g, w.tempF, 80, 82, Font::Fsb24, stale ? COL_MUTED : COL_TEXT);
-    drawText(g, wxLabel(w.code, w.isDay), 82, 104, Font::Fs9, COL_MUTED);
+    const int16_t cw = drawText(g, wxLabel(w.code, w.isDay), 82, 104, Font::Fs9, COL_MUTED);
+    // Rain cue (docs/10): its own slot, right-aligned under the sunset line; the condition
+    // is never dropped. fs9, else f2 when it would come within 8 px of the condition.
+    if (g_cue[0]) {
+      Font f = Font::Fs9;
+      setFont(g, f);
+      if (306 - (g.textWidth(g_cue) + 11) < 82 + cw + 8) f = Font::F2;
+      drawText(g, g_cue, 306 - 11, 104, f, COL_RAIN, R_BASELINE);
+      drawChevron(g, 306 - 6, 99, COL_RAIN);
+    }
   } else {
     drawText(g, "--", 80, 82, Font::Fsb24, COL_MUTED);
     drawText(g, "No data yet", 82, 104, Font::Fs9, COL_MUTED);
+    NetStatus n;                         // why: shown on screen (there may be no serial link)
+    appGetNet(n);
+    char diag[72];
+    snprintf(diag, sizeof(diag), "%s  heap %u/%u/%uk", n.wxErr[0] ? n.wxErr : "wx: not tried yet", n.heapFreeK,
+             n.heapMinK, n.heapLargestK);
+    g.fillRect(0, 112, SCREEN_W, 40, COL_BG);
+    drawText(g, diag, 10, 130, Font::F2, COL_WARN);
     return;
   }
 
@@ -127,12 +145,12 @@ void drawBody(const Weather &w) {
 }
 
 // Traffic chip: redrawn only when its text changes.
-void drawChip(const Traffic &t, bool radarUp) {
+void drawChip(const Traffic &t, bool trafficUp) {
   char left[24], right[40];
-  bool offline = !radarUp;
+  bool offline = !trafficUp;
   if (offline) {
     const int32_t s = max<int32_t>(0, (int32_t)(t.nextRetryMs - millis()) / 1000);
-    snprintf(left, sizeof(left), "Radar offline");
+    snprintf(left, sizeof(left), "Traffic offline");   // "Radar" means rain radar (v3-R1-5)
     snprintf(right, sizeof(right), "retrying in %d s", (int)s);
   } else {
     int n = 0;
@@ -179,13 +197,21 @@ void weatherEnter() {
   g_chip[0] = '\0';
 }
 
-void weatherUpdate(const Weather &w, const Traffic &t, bool radarUp, uint32_t now) {
+void weatherUpdate(const Weather &w, const Traffic &t, bool trafficUp, uint32_t now) {
   (void)now;
   struct tm lt;
   const int minute = localNow(lt) ? lt.tm_hour * 60 + lt.tm_min : -2;
   const bool stale = isStale(w);
 
-  if (w.version != g_wxVer) {
+  bool cueChanged = false;
+  if (appRadarVersion() != g_radarVer || minute != g_lastMinute) {   // frames arrive / age out
+    g_radarVer = appRadarVersion();
+    char cue[32] = "";
+    radarCue(cue, sizeof(cue));
+    cueChanged = strcmp(cue, g_cue) != 0;
+    if (cueChanged) snprintf(g_cue, sizeof(g_cue), "%s", cue);
+  }
+  if (w.version != g_wxVer || cueChanged) {
     g_wxVer = w.version;
     drawBody(w);
     drawHeader(w);
@@ -196,10 +222,11 @@ void weatherUpdate(const Weather &w, const Traffic &t, bool radarUp, uint32_t no
     g_lastMinute = minute;
     drawClock(w);
     drawHeader(w);
+    if (!w.valid) drawBody(w);           // refresh the diagnostics line
     if (stale != g_lastStale) {
       g_lastStale = stale;
       drawBody(w);
     }
   }
-  drawChip(t, radarUp);
+  drawChip(t, trafficUp);
 }

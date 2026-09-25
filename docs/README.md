@@ -13,6 +13,8 @@ first time.
 | 06 | [UI spec](06-ui-spec.md) | Any drawing code |
 | 07 | [Design review log](07-design-review.md) | Before changing how anything looks |
 | 08 | [Plane map](08-plane-map.md) | v2 map screen: navigation, band rendering, basemap, visual rules |
+| 09 | [Plane map v3](09-map-v3.md) | v3 map changes: inbound-first focus, leader, tap-again cycle, edge pointer (in review) |
+| 10 | [Rain radar](10-rain-radar.md) | v3 radar screen, weather rain cue, IEM TIFF-to-SD pipeline (in review) |
 
 ## Mockups
 - `mockups/screens.py` is the **executable layout spec**. It draws every screen

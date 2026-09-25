@@ -88,13 +88,25 @@ struct NetStatus {
   uint32_t nextRetryMs;
   bool timeSynced;
   bool weatherTried;
-  bool radarTried;
+  bool trafficTried;
+  // diagnostics shown on screen while data is missing (there may be no serial link)
+  int16_t lastHttp;                   // last failing HTTP status / HTTPClient error (0 = none)
+  int32_t lastTls;                    // mbedTLS error of that failure (0 = none)
+  uint16_t heapFreeK, heapMinK, heapLargestK;
+  char wxErr[40];                     // why the last weather fetch failed
 };
 
 void appStateInit();
 
 // Writers (net task)
-void appSetTraffic(const Traffic &t);
+// Traffic has ONE shared copy (RAM, v3: each copy is ~6 KB and TLS needs every byte),
+// owned and written ONLY by the net task, and only between appTrafficLock()/Unlock(). The
+// net task may read it without the lock (it is the only writer); the UI copies it with
+// appGetTraffic(). appTrafficPublish() bumps the version after a change.
+Traffic &appTrafficShared();
+void appTrafficLock();
+void appTrafficUnlock();
+void appTrafficPublish();
 void appSetWeather(const Weather &w);
 void appSetNet(const NetStatus &n);
 
@@ -106,7 +118,7 @@ uint32_t appTrafficVersion();
 uint32_t appWeatherVersion();
 
 // UI -> net task hints
-enum class UiScreen : uint8_t { Boot, Weather, Plane, Setup, Map };
+enum class UiScreen : uint8_t { Boot, Weather, Plane, Setup, Map, Radar };
 void appSetUiScreen(UiScreen s);
 UiScreen appGetUiScreen();
 
@@ -116,3 +128,31 @@ void appGetPollPlan(uint8_t &radiusNm, uint16_t &intervalMs);
 // UI -> net task: the map's selected aircraft, never evicted by the 40 cap.
 void appSetPinnedHex(const char *hex);   // "" to clear
 void appGetPinnedHex(char out[7]);
+
+// ---- rain radar (docs/10-rain-radar.md) -----------------------------------
+// Frames live on SD as /radar/<valid>.bin (radar_client.cpp). This is the index.
+struct RadarStatus {
+  bool sdOk;
+  uint8_t n;                          // frames on SD, oldest first
+  uint32_t valid[RADAR_FRAMES];       // unix time of each frame
+  uint32_t newestValid;               // IEM's newest composite (n0q_0.json), 0 = unknown
+  uint32_t checkedEpoch;              // last successful n0q_0.json check
+  uint8_t failStreak;
+  bool loading;                       // backfilling earlier frames right now
+  bool lastFailed;                    // the last check or fetch failed (stale = WARN only then)
+  bool unreadable;                    // the newest frame was rejected (colour check)
+  uint8_t quorumPct;                  // radars reporting nationally (< 95 = partial coverage)
+  char err[20];                       // why the last attempt failed ("http 503", "sd", "ram" ...) - on screen
+  // words for the newest frame (visible area, cleaned)
+  bool rain, heavy;                   // NAMED rain (words / cue)
+  bool echo;                          // anything drawn (frame bar, loop, backfill: v3-R3-1)
+  float rainMi, rainAz, heavyMi, heavyAz;
+  uint32_t version;
+};
+uint32_t appSetRadar(const RadarStatus &r);      // returns the new version
+void appGetRadar(RadarStatus &out);
+uint32_t appRadarVersion();
+// The UI acknowledges each frame list it has taken; the net task only deletes a frame
+// file once a list without it has been acknowledged (it may be open for playback).
+void appRadarAck(uint32_t version);
+uint32_t appRadarAcked();

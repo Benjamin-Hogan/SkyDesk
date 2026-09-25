@@ -35,11 +35,13 @@ ZOOM_MI = [5, 10, 20]       # chip labels "5 MI" / "10 MI" / "20 MI" (review v2-
 ZOOMS = [RING_PX / (mi / 1.150779) for mi in ZOOM_MI]   # px per nm
 RADIUS_NM = 40              # motorways / trunks / runways / canals / towns (fills 20 mi corners)
 PRIMARY_NM = 25             # primary roads (only drawn at 5 and 10 mi)
+RADAR_NM = 95               # radar basemap coverage (the view's corners are ~87 nm)
+RADAR_PPN = 100 / (50 / 1.150779)   # 50 mi ring = 100 px (docs/10)
 
 
-def observer():
+def observer(files=None):
     """Read OBS_LAT / OBS_LON from secrets.h if overridden there, else config.h."""
-    for f in (ROOT / "include" / "secrets.h", ROOT / "include" / "config.h"):
+    for f in files or (ROOT / "include" / "secrets.h", ROOT / "include" / "config.h"):
         if not f.exists():
             continue
         src = re.sub(r"//[^\n]*", "", f.read_text())
@@ -87,6 +89,12 @@ def overpass(query: str, name: str, refresh: bool) -> dict:
 def main():
     refresh = "--refresh" in sys.argv
     lat0, lon0 = observer()
+    # The mockups are drawn at the documented default location (config.h). When secrets.h
+    # moves the observer, previews go next to the cache instead of over the mocks' images.
+    out_png = OUT_PNG
+    if (round(lat0, 4), round(lon0, 4)) != tuple(round(v, 4) for v in observer([ROOT / "include" / "config.h"])):
+        out_png = CACHE / f"preview_{lat0:.4f}_{lon0:.4f}"
+        out_png.mkdir(parents=True, exist_ok=True)
 
     def bbox(nm):
         dlat = nm / 60
@@ -137,7 +145,39 @@ def main():
                     continue
                 d.line(pts, fill=idx, width=wd)
         images.append(img)
-        img.save(OUT_PNG / f"basemap-z{zi}.png")
+        img.save(out_png / f"basemap-z{zi}.png")
+
+    # --- radar view (docs/10-rain-radar.md): one wide zoom, 50 mi ring = 100 px,
+    #     motorways / trunks / named rivers + towns with population to 95 nm.
+    rb = bbox(RADAR_NM)
+    wide = overpass(f'[out:json][timeout:180];(way["highway"="motorway"]({rb});way["highway"="trunk"]({rb});'
+                    f'way["waterway"="river"]["name"~"^(Salt|Gila|Verde|Agua Fria|Santa Cruz|San Pedro) River$"]({rb});'
+                    f'node["place"~"^(city|town)$"]({rb}););out geom;', f"osm95_{lat0:.2f}_{lon0:.2f}.json", refresh)
+    rimg = Image.new("P", (W, H), 0)
+    rimg.putpalette([c for h in PALETTE for c in bytes.fromhex(h[1:])])
+    rd = ImageDraw.Draw(rimg)
+    for keep, idx in ((lambda t: t.get("waterway") == "river", 5), (lambda t: t.get("highway") == "trunk", 2),
+                      (lambda t: t.get("highway") == "motorway", 3)):
+        for e in wide["elements"]:
+            if e["type"] == "way" and "geometry" in e and keep(e.get("tags", {})):
+                rd.line([proj(g["lat"], g["lon"], RADAR_PPN) for g in e["geometry"]], fill=idx, width=1)
+    rimg.save(out_png / "basemap-radar.png")
+    rtowns = []
+    for e in wide["elements"]:
+        t = e.get("tags", {})
+        if e["type"] != "node" or "name" not in t:
+            continue
+        name = t["name"].split(" / ")[0]
+        if not name.isascii():
+            continue
+        try:
+            pop = int(t.get("population", "0").replace(",", ""))
+        except ValueError:
+            pop = 0
+        x, y = proj(e["lat"], e["lon"], RADAR_PPN)
+        if 8 < x < W - 8 and 30 < y < 206:
+            rtowns.append((pop, name, e["lat"], e["lon"]))
+    rtowns = sorted(rtowns, reverse=True)[:48]          # biggest first; the device spreads by octant, max 10
 
     # --- labels (drawn on-device with real fonts, so crisp at every zoom)
     towns = sorted({(e["tags"]["name"], e["lat"], e["lon"], e["tags"]["place"] == "city")
@@ -155,7 +195,7 @@ def main():
              "// Map data (c) OpenStreetMap contributors, ODbL.",
              '#include "basemap.h"', "",
              f"// observer {lat0:.4f},{lon0:.4f}; 4bpp, row-major, even x in high nibble", ""]
-    for zi, img in enumerate(images):
+    for zi, img in list(enumerate(images)) + [("R", rimg)]:
         px = list(img.tobytes())
         packed = bytes((px[i] << 4) | px[i + 1] for i in range(0, len(px), 2))
         lines.append(f"static const uint8_t Z{zi}[{len(packed)}] PROGMEM = {{")
@@ -175,7 +215,12 @@ def main():
               "const MapLabel MAP_AIRPORTS[] = {"]
     for code, (lat, lon) in sorted(airports.items()):
         lines.append(f'  {{"{code}", {lat:.4f}, {lon:.4f}, true}},')
-    lines += ["};", "const uint8_t MAP_AIRPORT_N = sizeof(MAP_AIRPORTS) / sizeof(MAP_AIRPORTS[0]);", ""]
+    lines += ["};", "const uint8_t MAP_AIRPORT_N = sizeof(MAP_AIRPORTS) / sizeof(MAP_AIRPORTS[0]);", "",
+              f"const MapZoom RADAR_BASEMAP = {{ZR, {RADAR_PPN:.4f}f}};", "",
+              "// radar towns, population order (docs/10 -> Towns)", "const MapLabel RADAR_TOWNS[] = {"]
+    for pop, name, lat, lon in rtowns:
+        lines.append(f'  {{"{name}", {lat:.4f}, {lon:.4f}, {"true" if pop >= 100000 else "false"}}},')
+    lines += ["};", "const uint8_t RADAR_TOWN_N = sizeof(RADAR_TOWNS) / sizeof(RADAR_TOWNS[0]);", ""]
     OUT_CPP.write_text("\n".join(lines))
     print(f"towns={len(towns)} airports={sorted(airports)} -> {OUT_CPP.relative_to(ROOT)} "
           f"({OUT_CPP.stat().st_size // 1024} KB source)")

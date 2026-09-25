@@ -1,4 +1,5 @@
 // Sprite allocation, transitions, time formatting, and the boot screen.
+#include <esp_heap_caps.h>
 #include "ui_internal.h"
 #include "config.h"
 
@@ -62,7 +63,7 @@ void uiInit(TFT_eSPI &t) {
   stats = makeSprite(320, 38, 4);
   clockSpr = makeSprite(120, 58, 4);
   band = makeSprite(320, 48, 4);     // plane map, drawn in 5 bands (docs/08)
-  Serial.printf("[ui] sprites ready, free heap %u\n", ESP.getFreeHeap());
+  Serial.printf("[ui] sprites ready, free heap %u\n", heap_caps_get_free_size(MALLOC_CAP_8BIT));
 }
 
 void uiWipe(bool down) {
@@ -111,7 +112,7 @@ void bootDraw(const NetStatus &n, bool full) {
     snprintf(buf, sizeof(buf), "Retrying in %d s  (attempt %d)", (int)max<int32_t>(left, 0), n.attempt);
     drawText(g, buf, 64, 128, Font::F2, COL_MUTED);
     row(150, TODO, "Clock", "");
-    row(172, TODO, "Weather, radar", "");
+    row(172, TODO, "Weather, traffic", "");
     drawText(g, "Check WIFI_SSID / WIFI_PASSWORD in secrets.h", 160, 214, Font::F2, COL_MUTED, C_BASELINE);
     drawText(g, "2.4 GHz networks only", 160, 232, Font::F2, COL_DIM, C_BASELINE);
     return;
@@ -127,7 +128,7 @@ void bootDraw(const NetStatus &n, bool full) {
   }
   row(132, n.timeSynced ? OK : (up ? BUSY : TODO), "Clock", n.timeSynced ? buf : "");
   row(154, n.weatherTried ? OK : (up ? BUSY : TODO), "Weather", "");
-  row(176, n.radarTried ? OK : (up ? BUSY : TODO), "Radar", "");
+  row(176, n.trafficTried ? OK : (up ? BUSY : TODO), "Traffic", "");
   snprintf(buf, sizeof(buf), "%s  %.2f, %.2f", OBS_PLACE, (double)OBS_LAT, (double)OBS_LON);
   drawText(g, buf, 160, 214, Font::F2, COL_MUTED, C_BASELINE);
 }

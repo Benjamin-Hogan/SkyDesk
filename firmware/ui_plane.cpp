@@ -389,10 +389,10 @@ void drawStats(const TrackView &v) {
 
   const int16_t x = 196;
   const char *word;
-  if (a.vRateFpm > 300) {
+  if (a.vRateFpm > MIN_VRATE_FPM) {
     s.fillTriangle(x, 233 - oy, x + 12, 233 - oy, x + 6, 221 - oy, P_TEXT);
     word = "Climbing";
-  } else if (a.vRateFpm < -300) {
+  } else if (a.vRateFpm < -MIN_VRATE_FPM) {
     s.fillTriangle(x, 222 - oy, x + 12, 222 - oy, x + 6, 234 - oy, P_TEXT);
     word = "Descending";
   } else {

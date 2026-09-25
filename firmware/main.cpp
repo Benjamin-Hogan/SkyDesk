@@ -15,6 +15,8 @@
 #include "route_client.h"
 #include "settings.h"
 #include "touch_input.h"
+#include "sd_store.h"
+#include "radar_client.h"
 #include "tracker.h"
 #include "ui.h"
 
@@ -27,10 +29,15 @@ Traffic   g_traffic;
 Weather   g_weather;
 NetStatus g_net;
 
-enum class Scr : uint8_t { Boot, Weather, Plane, Setup, Map };
+enum class Scr : uint8_t { Boot, Weather, Plane, Setup, Map, Radar };
 Scr      g_scr = Scr::Boot;
-Scr      g_home = Scr::Weather;   // where the plane card returns to: Weather or Map
-uint32_t g_mapTouchMs = 0;        // map idle timer (docs/08 -> Navigation)
+Scr      g_home = Scr::Weather;   // where the plane card returns to: Weather, Map or Radar
+// Idle (docs/09 M1b, v3-R3-2): TWO stamps. The timer restarts on a touch OR a return from
+// a card; the cap counts from the last REAL touch only, so pops can't hold the screen.
+uint32_t g_idleTimerMs = 0;
+uint32_t g_lastTouchMs = 0;
+char     g_cardHex[7] = "";       // the overhead plane on the card (M7: focused after it closes)
+bool     g_cardAuto = false;      // the card popped by itself (not opened from the map strip)
 uint32_t g_lastTick = 0;
 uint32_t g_lastBoot = 0;
 uint32_t g_arrivalMs = 0;
@@ -42,6 +49,7 @@ UiScreen toUi(Scr s) {
     case Scr::Plane:   return UiScreen::Plane;
     case Scr::Setup:   return UiScreen::Setup;
     case Scr::Map:     return UiScreen::Map;
+    case Scr::Radar:   return UiScreen::Radar;
     default:           return UiScreen::Boot;
   }
 }
@@ -52,13 +60,23 @@ void go(Scr next) {
   const bool toPlane = next == Scr::Plane;
   if (g_scr != Scr::Boot && next != Scr::Setup && g_scr != Scr::Setup) uiWipe(toPlane);
   if (g_scr == Scr::Map && next != Scr::Plane) mapLeave();   // the card returns to the map
+  if (g_scr == Scr::Radar) radarLeave();                     // unmount SD: TLS needs the RAM
+  const bool fromCard = g_scr == Scr::Plane;
   g_scr = next;
+  if (next == Scr::Map || next == Scr::Radar) {
+    g_idleTimerMs = millis();                              // the idle timer restarts ...
+    if (!fromCard) g_lastTouchMs = g_idleTimerMs;          // ... the cap only on a real visit
+  }
   appSetUiScreen(toUi(next));
   switch (next) {
     case Scr::Weather: weatherEnter(); break;
     case Scr::Plane:   planeEnter(); break;
     case Scr::Setup:   setupEnter(); break;
-    case Scr::Map:     mapEnter(); g_mapTouchMs = millis(); break;   // idle timer restarts
+    case Scr::Map:
+      mapEnter();
+      if (fromCard && g_cardAuto) mapCardClosed(g_cardHex);   // M7
+      break;
+    case Scr::Radar:   radarEnter(); break;
     case Scr::Boot:    bootDraw(g_net, true); break;
   }
 }
@@ -107,8 +125,15 @@ void handleTouch(const TouchEvent &e, uint32_t now) {
       if (e.evt == TouchEvt::Tap && !setupInCalibration() && setupTouch(e.x, e.y) == SetupResult::Done)
         go(trackerView().mode != PlaneMode::None ? Scr::Plane : g_home);
       break;
+    case Scr::Radar:
+      g_idleTimerMs = g_lastTouchMs = now;
+      if (e.evt == TouchEvt::Tap && radarTouchBack(e.x, e.y)) {
+        g_home = Scr::Weather;
+        go(Scr::Weather);
+      }
+      break;
     case Scr::Map: {
-      g_mapTouchMs = now;
+      g_idleTimerMs = g_lastTouchMs = now;
       if (e.evt != TouchEvt::Tap) break;
       char hex[7] = "";
       switch (mapTouch(g_traffic, e.x, e.y, hex)) {
@@ -125,6 +150,7 @@ void handleTouch(const TouchEvent &e, uint32_t now) {
       break;
     }
     case Scr::Plane:
+      g_lastTouchMs = now;               // a touch on the card is a touch (idle cap, v3-R3-2)
       if (e.evt == TouchEvt::Tap) trackerTapNext();
       else if (e.evt == TouchEvt::LongPress) trackerDismiss(now);
       break;
@@ -132,6 +158,9 @@ void handleTouch(const TouchEvent &e, uint32_t now) {
       if (e.evt == TouchEvt::Tap && e.y >= 210) {   // traffic chip -> plane map (docs/08)
         g_home = Scr::Map;
         go(Scr::Map);
+      } else if (e.evt == TouchEvt::Tap && e.y >= 30 && e.y <= 112) {   // the hero band -> radar (docs/10)
+        g_home = Scr::Radar;
+        go(Scr::Radar);
       }
       break;
     case Scr::Boot:
@@ -161,6 +190,8 @@ void setup() {
   routeInit();
   uiInit(tft);          // sprites before WiFi: contiguous heap
   touchInit();
+  sdInit();             // v3: own SPI bus (HSPI); absent card = radar disabled
+  radarClientInit();    // index the radar frames already on the card
   geo::selfTest();
 
   appGetNet(g_net);
@@ -170,17 +201,23 @@ void setup() {
 }
 
 void loop() {
-  const uint32_t now = millis();
-  if (now - g_lastTick < UI_TICK_MS) return;
-  g_lastTick = now;
+  if (millis() - g_lastTick < UI_TICK_MS) return;
+  g_lastTick = millis();
 
   // Pull fresh snapshots (cheap copies under the app_state mutex).
-  if (appTrafficVersion() != g_traffic.version) {
+  const bool newTraffic = appTrafficVersion() != g_traffic.version;
+  if (newTraffic) appGetTraffic(g_traffic);
+  if (appWeatherVersion() != g_weather.version) appGetWeather(g_weather);
+  appGetNet(g_net);
+
+  // Read the clock AFTER the snapshots: the net task stamps fetchedMs with its own
+  // millis(), so a `now` taken earlier could be a few ms older than the data and
+  // make unsigned "age" math wrap (seen on-device as the map bouncing to weather).
+  const uint32_t now = millis();
+  if (newTraffic) {
     appGetTraffic(g_traffic);
     if (g_traffic.ok) trailsUpdate(g_traffic, now);   // trails exist before the map opens
   }
-  if (appWeatherVersion() != g_weather.version) appGetWeather(g_weather);
-  appGetNet(g_net);
 
   trackerUpdate(g_traffic, now);
   handleTouch(touchPoll(now), now);
@@ -196,7 +233,18 @@ void loop() {
       }
       break;
     case Scr::Map:
-      if (now - g_mapTouchMs > MAP_IDLE_S * 1000UL) {   // weather is the home screen
+      // mapIdleExpired compares signed: go(Map) stamps the timers with millis(), which can
+      // be a few ms AFTER this loop's `now` (unsigned math once bounced the map straight
+      // back to weather on-device: 1 -> 4 -> 1 within 100 ms).
+      if (mapIdleExpired(now, g_idleTimerMs, g_lastTouchMs, mapFocusWillPop())) {   // weather is home
+        g_home = Scr::Weather;
+        go(Scr::Weather);
+        break;
+      }
+      go(trackerView().mode != PlaneMode::None ? Scr::Plane : g_home);
+      break;
+    case Scr::Radar:
+      if (mapIdleExpired(now, g_idleTimerMs, g_lastTouchMs, false)) {   // same rule, no pause
         g_home = Scr::Weather;
         go(Scr::Weather);
         break;
@@ -215,12 +263,20 @@ void loop() {
   if (arrival) g_arrivalMs = now;
 
   if (g_scr == Scr::Weather) {
-    const bool radarUp = g_traffic.failStreak < ADSB_FAILOVER_AFTER;
-    weatherUpdate(g_weather, g_traffic, radarUp, now);
+    const bool trafficUp = g_traffic.failStreak < ADSB_FAILOVER_AFTER;
+    weatherUpdate(g_weather, g_traffic, trafficUp, now);
   } else if (g_scr == Scr::Plane) {
     planeUpdate(trackerView(), g_traffic, now, arrival);
   } else if (g_scr == Scr::Map) {
     mapUpdate(g_traffic, g_traffic.failStreak < ADSB_FAILOVER_AFTER, now);
+  } else if (g_scr == Scr::Radar) {
+    radarUpdate(now);                  // acknowledges each frame list it takes
+  }
+  if (g_scr != Scr::Radar) appRadarAck(appRadarVersion());   // no frame file is open
+  if (g_scr == Scr::Plane) {           // remember the card's plane for M7
+    const TrackView &v = trackerView();
+    snprintf(g_cardHex, sizeof(g_cardHex), "%s", v.ac.hex);
+    g_cardAuto = v.mode == PlaneMode::Live || v.mode == PlaneMode::Departing;
   }
 
   updateBacklight();

@@ -1,4 +1,8 @@
 // readsb JSON (adsb.fi / adsb.lol) -> Aircraft[]. No I/O: host-testable.
+//
+// STREAMED, one aircraft object at a time: memory use is constant no matter how
+// many aircraft the radius holds. (Parsing the whole document ran out of heap
+// on-device at an 18 nm radius while a TLS session was open: "JSON NoMemory".)
 #include "adsb_parse.h"
 #include "geo.h"
 
@@ -16,15 +20,39 @@ void copyTrim(char *dst, size_t n, const char *src) {
 
 }  // namespace
 
-void adsbBuildFilter(JsonDocument &f) {
+namespace {
+
+// Filter for ONE aircraft object.
+void buildFilter(JsonDocument &f) {
   static const char *fields[] = {"hex", "flight", "r", "t", "desc", "ownOp", "alt_baro",
                                  "alt_geom", "gs", "track", "baro_rate", "geom_rate",
                                  "lat", "lon", "seen_pos", "category"};
-  for (const char *root : {"aircraft", "ac"}) {
-    JsonObject a = f[root].add<JsonObject>();
-    for (const char *k : fields) a[k] = true;
+  for (const char *k : fields) f[k] = true;
+}
+
+// Advance past '"aircraft":[' (adsb.fi) or '"ac":[' (adsb.lol). Whitespace-tolerant.
+bool seekAircraftArray(ByteSource &in) {
+  char win[16] = {0};   // last non-space chars
+  for (;;) {
+    const int c = in.read();
+    if (c < 0) return false;
+    if (c == ' ' || c == '\n' || c == '\r' || c == '\t') continue;
+    if (c == '[') {
+      const size_t L = strlen(win);
+      auto endsWith = [&](const char *s) {
+        const size_t n = strlen(s);
+        return L >= n && strcmp(win + L - n, s) == 0;
+      };
+      if (endsWith("\"aircraft\":") || endsWith("\"ac\":")) return true;
+    }
+    const size_t L = strlen(win);
+    if (L == sizeof(win) - 1) memmove(win, win + 1, L);   // keep the tail
+    win[strlen(win)] = (char)c;
+    win[sizeof(win) - 1] = '\0';
   }
 }
+
+}  // namespace
 
 namespace {
 
@@ -65,17 +93,24 @@ bool parseOne(JsonObjectConst o, Aircraft &a) {
 
 }  // namespace
 
-int adsbParse(const JsonDocument &doc, Aircraft *out, size_t cap) {
+int adsbParseStream(ByteSource &in, Aircraft *out, size_t cap) {
   // adsb.fi uses "aircraft", adsb.lol uses "ac" (docs/04 §1).
-  JsonArrayConst arr = doc["aircraft"].is<JsonArrayConst>() ? doc["aircraft"].as<JsonArrayConst>()
-                                                             : doc["ac"].as<JsonArrayConst>();
-  if (arr.isNull()) return -1;
+  if (!seekAircraftArray(in)) return -1;
+  JsonDocument filter;
+  buildFilter(filter);
+  JsonDocument doc;            // holds ONE aircraft at a time
   size_t n = 0;
   Aircraft a;
-  for (JsonObjectConst o : arr) {
+  for (;;) {
+    int c;
+    while ((c = in.peek()) == ' ' || c == ',' || c == '\n' || c == '\r' || c == '\t') in.read();
+    if (c == ']') break;                          // end of the array
+    if (c != '{') return -2;                      // truncated / timed out
+    const DeserializationError err = deserializeJson(doc, in, DeserializationOption::Filter(filter));
+    if (err) return -2;                           // a partial snapshot would fake "lost" planes
     // Ground traffic is useless everywhere (tracker, chip, map) and at PHX it is
     // most of the feed - drop it BEFORE any truncation (docs/08 -> Data).
-    if (!parseOne(o, a) || a.onGround) continue;
+    if (!parseOne(doc.as<JsonObjectConst>(), a) || a.onGround) continue;
     if (n < cap) {
       out[n++] = a;
     } else {                                   // full: keep the nearer one

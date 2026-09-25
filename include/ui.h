@@ -61,7 +61,7 @@ void uiWipe(bool down);              // 8-band transition
 void bootDraw(const NetStatus &n, bool full);
 
 void weatherEnter();
-void weatherUpdate(const Weather &w, const Traffic &t, bool radarUp, uint32_t now);
+void weatherUpdate(const Weather &w, const Traffic &t, bool trafficUp, uint32_t now);
 
 void planeEnter();
 void planeUpdate(const TrackView &v, const Traffic &t, uint32_t now, bool arrival);
@@ -70,8 +70,17 @@ void planeUpdate(const TrackView &v, const Traffic &t, uint32_t now, bool arriva
 enum class MapAction : uint8_t { None, Back, OpenPlane };
 void mapEnter();
 void mapLeave();
-void mapUpdate(const Traffic &t, bool radarUp, uint32_t now);
+void mapUpdate(const Traffic &t, bool trafficUp, uint32_t now);
 MapAction mapTouch(const Traffic &t, int16_t x, int16_t y, char *hexOut);   // hexOut: 7 bytes
+void mapCardClosed(const char *hex);   // back from an overhead card: that plane stays focused 30 s (M7)
+bool mapFocusWillPop();                // the idle pause (09 M1b)
+
+// Rain radar (docs/10-rain-radar.md)
+void radarEnter();
+void radarUpdate(uint32_t now);
+void radarLeave();                     // releases the SD mount
+bool radarTouchBack(int16_t x, int16_t y);
+bool radarCue(char *out, size_t n);    // the weather screen's rain cue, same words as the strip
 
 enum class SetupResult : uint8_t { None, Done };
 void setupEnter();

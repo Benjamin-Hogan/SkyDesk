@@ -8,3 +8,6 @@
 // ground distance, geometry computed). Updates t.ok / failStreak / provider.
 // Returns true on success. Handles failover internally.
 bool adsbFetch(Traffic &t);
+
+// The parse buffer, idle between fetches (net task only): the radar convert borrows it.
+uint8_t *adsbScratch(size_t &len);

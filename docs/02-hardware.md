@@ -33,7 +33,7 @@ If a user has the older single-USB CYD (true ILI9341), swap to
 
 Orientation: landscape, `setRotation(1)` → **320 × 240** logical pixels.
 
-## Touch wiring (XPT2046 via `XPT2046_Touchscreen`, own SPI bus)
+## Touch wiring (XPT2046, **bit-banged** in `touch_input.cpp` since v3)
 | Signal | GPIO |
 |---|---|
 | T_CLK | 25 |
@@ -44,12 +44,18 @@ Orientation: landscape, `setRotation(1)` → **320 × 240** logical pixels.
 
 Touch is unit-to-unit variable; calibration is stored in NVS (`Preferences`).
 
+**Why bit-banged (v3):** the ESP32 has two usable SPI peripherals. The TFT uses VSPI, and the
+microSD card now uses HSPI. The XPT2046 is slow and polled once per UI tick, so software SPI
+costs nothing. The command sequence, averaging, Z threshold and rotation are copied from
+XPT2046_Touchscreen v1.4, so calibrations saved in NVS stay valid. That library is no longer a
+dependency.
+
 ## Other pins
 | Use | GPIO | Notes |
 |---|---|---|
 | LED R / G / B | 4 / 16 / 17 | Active-LOW. Used for a subtle "plane overhead" pulse |
 | LDR | 34 | Analog, optional auto-brightness |
-| SD (VSPI) | CS 5, SCK 18, MISO 19, MOSI 23 | Not used in v1 |
+| microSD | CS 5, SCK 18, MISO 19, MOSI 23 | **HSPI** (own bus, `sd_store.cpp`), 20 MHz. Radar frames (docs/10). Optional: without a card the radar screen says so, and nothing else changes |
 
 ## Hard constraints for firmware
 1. **RAM**: ~300 KB free heap after WiFi+TLS. A full-screen 16-bit sprite is

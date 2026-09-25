@@ -8,9 +8,13 @@
 #pragma once
 
 #include <Arduino.h>
+#ifdef SKYDESK_HOST_TEST
+#include "secrets.h.example"   // host tests: fixtures are relative to the default location
+#else
 #include "secrets.h"
+#endif
 
-#define FW_VERSION        "1.0.0"
+#define FW_VERSION        "2.0.0"
 #define USER_AGENT        "SkyDesk/" FW_VERSION " (ESP32 CYD)"
 
 // --------------------------------------------------------------------------
@@ -82,6 +86,38 @@
 #define MAP_TAP_RADIUS_PX     28     // fingertip on resistive touch is ~56 px
 #define MAP_CLUSTER_PX        12     // 20 mi zoom: merge planes closer than this
 #define MAP_OFFLINE_KEEP_S    60     // radar down: keep dimmed positions this long
+// v3 (docs/09-map-v3.md)
+#define MIN_VRATE_FPM       300    // climbing / descending shown beyond this (card + map ticks)
+#define MAP_POP_STEP_S      5      // will-pop path sampling step (12 samples to +60 s)
+#define MAP_CYCLE_MS        3000   // a repeat tap within this time (and 28 px) cycles
+#define MAP_AFTER_POP_S     30     // the popped plane stays focused this long
+#define MAP_LEADER_S        60     // focus leader length in seconds of flight
+
+// Rain radar (docs/10-rain-radar.md)
+#define RADAR_DBZ_LIGHT     20     // level thresholds (n0q dBZ); below LIGHT = dropped
+#define RADAR_DBZ_MODERATE  30
+#define RADAR_DBZ_HEAVY     40
+#define RADAR_DBZ_VHEAVY    50
+#define RADAR_DBZ_EXTREME   60
+#define RADAR_MIN_BLOB_PX   6      // 8-connected, after the static clutter mask (docs/10 -> Clutter)
+#define RADAR_FRAMES        6      // loop length, 10 min apart
+#define RADAR_FRAME_STEP_S  600
+#define RADAR_CUE_MAX_MI    40     // weather rain cue: 2..40 mi
+#define RADAR_CUE_MIN_MI    2
+#define RADAR_STALE_MIN     15     // newest frame older: WARN chip, loop stops
+#define RADAR_CLEAR_MIN     60     // older: no rain drawn (offline)
+#define RADAR_POLL_WET_S    600    // cue fetch cadence when rain is plausible
+#define RADAR_POLL_DRY_S    1800   // ... otherwise
+#define RADAR_POLL_OPEN_S   120    // radar screen open: n0q_0.json every 2 min (v3-R1-9)
+#define RADAR_IDLE_S        120
+#define RADAR_DEFER_MAX_S   120    // radar work deferred for a hot sky at most this long (v3-R2-1)
+#define RADAR_QUORUM_MIN    95     // % of radars reporting, below = 'partial coverage'
+#define RADAR_MISS_PERMILLE 5      // > 0.5 % non-n0q colours = frame unreadable (v3-R1-1)
+#define RADAR_NAME_MIN_PX   12     // a blob is NAMED (strip/cue) if >= this with moderate+ ...
+#define RADAR_NAME_LIGHT_PX 40     // ... or >= this of any rain (virga filter)  (v3-R2-2)
+#define RADAR_NAME_ALWAYS_MI 5     // ... or ANY size this close to you (v3-R3-1)
+#define RADAR_CUE_MAX_AGE_MIN 30   // the weather cue is never drawn from an older frame
+#define MAP_IDLE_MAX_S      300    // since the last REAL touch; card returns don't reset it (v3-R3-2)
 
 #define ADSB_PRIMARY_URL      "https://opendata.adsb.fi/api/v2/lat/%.4f/lon/%.4f/dist/%d"
 #define ADSB_FALLBACK_URL     "https://api.adsb.lol/v2/point/%.4f/%.4f/%d"
@@ -104,7 +140,7 @@
 #define LDR_AUTO          0
 
 // --------------------------------------------------------------------------
-//  Touch (XPT2046 on its own bus - driven by XPT2046_Touchscreen)
+//  Touch (XPT2046, bit-banged in touch_input.cpp - HSPI belongs to the SD card)
 // --------------------------------------------------------------------------
 #define TOUCH_SCLK        25
 #define TOUCH_MOSI        32
@@ -118,6 +154,16 @@
 #define TAP_MAX_MS        600
 #define LONG_PRESS_MS     1000
 #define SETTINGS_HOLD_MS  3000
+
+// --------------------------------------------------------------------------
+//  microSD (v3, docs/10): own SPI bus = the HSPI peripheral on the CYD slot pins
+// --------------------------------------------------------------------------
+#define SD_SCLK           18
+#define SD_MISO           19
+#define SD_MOSI           23
+#define SD_CS             5
+#define SD_FREQ_HZ        20000000
+#define SD_MAX_FILES      2          // each costs ~4.6 KB of heap, mounted for good at boot (sd_store.cpp)
 
 // Onboard RGB LED (active-LOW)
 #define LED_R_PIN         4

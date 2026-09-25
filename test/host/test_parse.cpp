@@ -23,12 +23,26 @@ static std::string slurp(const char *name) {
 
 static Aircraft out[80];
 
-static int parse(const std::string &json) {
-  JsonDocument filter;
-  adsbBuildFilter(filter);
-  JsonDocument doc;
-  if (deserializeJson(doc, json, DeserializationOption::Filter(filter))) return -2;
-  return adsbParse(doc, out, 80);
+// ByteSource over a string (the device wraps the HTTPS stream instead).
+class StringSource : public ByteSource {
+ public:
+  explicit StringSource(const std::string &s) : s_(s) {}
+  int peek() override { return i_ < s_.size() ? (unsigned char)s_[i_] : -1; }
+  int read() override { return i_ < s_.size() ? (unsigned char)s_[i_++] : -1; }
+  size_t readBytes(char *b, size_t n) override {
+    size_t k = 0;
+    while (k < n && i_ < s_.size()) b[k++] = s_[i_++];
+    return k;
+  }
+
+ private:
+  const std::string &s_;
+  size_t i_ = 0;
+};
+
+static int parse(const std::string &json, size_t cap = 80) {
+  StringSource src(json);
+  return adsbParseStream(src, out, cap);
 }
 
 void testParse() {
@@ -66,6 +80,12 @@ void testParse() {
   CHECK(adsbKeepNearest(out, n, 5, far.c_str()) == 5 && far == out[4].hex,
         "40-cap keeps the pinned (selected) plane even when it is the farthest");
   CHECK(parse(R"({"msg":"nope"})") == -1, "missing aircraft array -> -1");
+  const std::string full = slurp("adsbfi_gilbert_35nm.json");
+  CHECK(parse(full.substr(0, full.size() / 2)) == -2, "stream cut off mid-array -> -2 (no partial snapshot)");
+  n = parse(full, 5);
+  bool nearest = n == 5;
+  const int all = parse(full);
+  CHECK(nearest && all > 5, "cap keeps the NEAREST aircraft while streaming");
 }
 
 static RouteInfo route(const char *o, double olat, double olon, const char *d, double dlat, double dlon) {

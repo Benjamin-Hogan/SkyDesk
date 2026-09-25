@@ -23,6 +23,12 @@ uint32_t  g_departEndMs = 0;
 uint32_t  g_forcedEndMs = 0;
 uint32_t  g_lastFreshFeatured = 0;
 
+// Wrap-safe "ms since t" (negative if t is in the future - treated as 0).
+uint32_t since(uint32_t now, uint32_t t) {
+  const int32_t d = (int32_t)(now - t);
+  return d > 0 ? (uint32_t)d : 0;
+}
+
 bool airborne(const Aircraft &a) {
   return !a.onGround && a.altFt - OBS_ELEV_FT >= MIN_AGL_FT;
 }
@@ -106,7 +112,7 @@ void trackerUpdate(const Traffic &t, uint32_t now) {
       }
       tr->a = a;
       if (a.seenPos <= MAX_SEEN_POS_S) tr->freshMs = freshMsOf(t, a);
-    } else if (now - freshMsOf(t, a) <= MAX_SEEN_POS_S * 1000UL && meetsEnter(a)) {
+    } else if (since(now, freshMsOf(t, a)) <= MAX_SEEN_POS_S * 1000UL && meetsEnter(a)) {
       // (freshness vs *now*: a frozen snapshot must not re-enter planes it just lost)
       if ((tr = freeSlot())) {
         tr->a = a;
@@ -118,7 +124,7 @@ void trackerUpdate(const Traffic &t, uint32_t now) {
     }
   }
   for (auto &tr : g_trk) {   // lost from the feed
-    if (tr.used && now - tr.freshMs > LOST_TIMEOUT_S * 1000UL) {
+    if (tr.used && since(now, tr.freshMs) > LOST_TIMEOUT_S * 1000UL) {
       Serial.printf("[trk] lost %s\n", tr.a.hex);
       tr.used = false;
     }
@@ -174,7 +180,7 @@ void trackerUpdate(const Traffic &t, uint32_t now) {
   }
 
   // 4. Derived view fields.
-  const uint32_t age = now - g_lastFreshFeatured;
+  const uint32_t age = since(now, g_lastFreshFeatured);
   g_view.ageS = (uint8_t)min<uint32_t>(age / 1000, 255);
   g_view.stale = g_view.mode == PlaneMode::Live && age > STALE_AFTER_S * 1000UL;
   g_view.graceLeftS = g_view.mode == PlaneMode::Departing
