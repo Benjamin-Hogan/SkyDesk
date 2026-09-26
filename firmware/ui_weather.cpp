@@ -179,7 +179,7 @@ void drawChip(const Traffic &t, bool trafficUp) {
   in.retryS = max<int32_t>(0, (int32_t)(t.nextRetryMs - millis()) / 1000);
   const Aircraft *nearest = nullptr;
   for (uint8_t i = 0; i < t.n; i++) {
-    if (t.ac[i].onGround) continue;
+    if (t.ac[i].onGround || t.ac[i].distNm > NEARBY_NM) continue;   // polls reach 25 nm (V4); "nearby" is 12
     if (!nearest) nearest = &t.ac[i];
     in.nNearby++;
   }

@@ -237,6 +237,10 @@ void netTask(void *) {
         lastHeapLog = millis();
         Serial.printf("[net] heap free=%u min=%u largest=%u\n", heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT),
                       heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
+        uint32_t fAvg, fMax, fCap;
+        adsbTakeStats(fAvg, fMax, fCap);
+        Serial.printf("[adsb] fetch avg=%lu ms max=%lu ms cap80 hits=%lu (last min)\n", (unsigned long)fAvg,
+                      (unsigned long)fMax, (unsigned long)fCap);
         Serial.printf("[net] stack free net=%u loop=%u\n", (unsigned)uxTaskGetStackHighWaterMark(nullptr),
                       (unsigned)uxTaskGetStackHighWaterMark(xTaskGetHandle("loopTask")));
       }

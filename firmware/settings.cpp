@@ -16,6 +16,7 @@ void settingsLoad() {
   g_s.viewUpDeg = p.getShort("viewUp", VIEW_UP_DEG_DEFAULT);
   g_s.nightDim = p.getBool("nightDim", true);
   g_s.touchCal = p.getBool("tcal", false);
+  g_s.flip = p.getBool("flip", SCREEN_FLIP_DEFAULT);
   g_s.tXMin = p.getShort("txmin", TOUCH_RAW_MIN_X);
   g_s.tXMax = p.getShort("txmax", TOUCH_RAW_MAX_X);
   g_s.tYMin = p.getShort("tymin", TOUCH_RAW_MIN_Y);
@@ -55,6 +56,7 @@ void settingsSave() {
   p.putShort("viewUp", g_s.viewUpDeg);
   p.putBool("nightDim", g_s.nightDim);
   p.putBool("tcal", g_s.touchCal);
+  p.putBool("flip", g_s.flip);
   p.putShort("txmin", g_s.tXMin);
   p.putShort("txmax", g_s.tXMax);
   p.putShort("tymin", g_s.tYMin);
@@ -70,6 +72,8 @@ void settingsSavePortal() {
   p.putBytes("pcfg", &g_s.net, sizeof(g_s.net));
   p.end();
 }
+
+uint8_t screenRotation() { return g_s.flip ? (TFT_ROTATION + 2) & 3 : TFT_ROTATION; }
 
 const char *settingsTzPosix() {
   const SetupTz *z = setupTzById(g_s.net.tz);

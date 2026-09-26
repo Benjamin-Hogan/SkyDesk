@@ -214,10 +214,10 @@ void setup() {
   digitalWrite(LED_B_PIN, HIGH);
 
   tft.init();
-  tft.setRotation(TFT_ROTATION);
+  settingsLoad();                   // before the rotation: Flip screen is a setting
+  tft.setRotation(screenRotation());
   tft.fillScreen(COL_BG);
 
-  settingsLoad();
   {   // docs/12: a location saved by the portal; else the build location (OBS_*)
     const PortalCfg &n = settings().net;
     if (n.locSaved) obsSet(n.lat, n.lon, n.elevFt, n.place);

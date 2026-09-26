@@ -62,7 +62,8 @@
 // --------------------------------------------------------------------------
 //  Polling (docs/04-data-sources.md)
 // --------------------------------------------------------------------------
-#define POLL_RADIUS_NM        12
+#define POLL_RADIUS_NM        25    // V4 Sky Trails: PHX (~17 nm) streams (docs/13); was 12
+#define NEARBY_NM             12    // "N nearby" and Today's nearby keep their 3.0 meaning
 #define LOOKUP_RADIUS_NM      6.0f
 #define ADSB_POLL_WEATHER_MS  5000
 #define ADSB_POLL_PLANE_MS    2000
@@ -102,6 +103,8 @@
 #define TODAY_GATE_PCT      80     // ... and at least this share kept
 #define TODAY_IDLE_S        120    // Today page: no touch -> weather
 #define TODAY_OUTAGE_MIN    5      // an hour with more traffic outage than this is dotted
+// Sky Trails (docs/13-sky-trails.md)
+#define TRAILS_KEEP_DAYS    30     // day files older than this are deleted (a day is ~3-11 MB)
 // Setup portal (docs/12-setup-portal.md)
 #define SETUP_GATE_MI       0.1    // a saved location this close to the build centre keeps the street maps
 #define SETUP_RADAR_GATE_MI 1.0    // ... and this close keeps the radar (a radar pixel is ~0.5 mi)
@@ -145,7 +148,8 @@
 // --------------------------------------------------------------------------
 //  Display
 // --------------------------------------------------------------------------
-#define TFT_ROTATION      1
+#define TFT_ROTATION      1      // BASE landscape; Settings -> Flip screen turns it 180 (rotation 3)
+#define SCREEN_FLIP_DEFAULT true // the owner's desk: flipped (2026-09-26)
 #define SCREEN_W          320
 #define SCREEN_H          240
 #define UI_TICK_MS        25
@@ -165,6 +169,8 @@
 #define TOUCH_MOSI        32
 #define TOUCH_MISO        39
 #define TOUCH_CS          33
+// Uncalibrated raw extents, in the BASE orientation (rotation 1). The flip is applied to screen
+// coordinates after mapping (touch_input.cpp), so these never change with it.
 #define TOUCH_RAW_MIN_X   200
 #define TOUCH_RAW_MAX_X   3700
 #define TOUCH_RAW_MIN_Y   240

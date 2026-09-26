@@ -4,6 +4,7 @@
 #include "geo.h"
 #include "settings.h"
 #include "touch_input.h"
+#include "touch_map.h"
 #include "ui_internal.h"
 
 using namespace ui;
@@ -15,13 +16,23 @@ Page g_page = Page::Menu;
 uint8_t g_calStep = 0;
 int16_t g_calRaw[2][2];
 bool g_calWasDown = false;
+uint32_t g_quietUntil = 0;   // Flip screen: touch ignored until a clean release + 400 ms (docs/12)
+bool g_quiet = false;
 
 struct Btn { int16_t x, y, w, h; };
 bool hit(const Btn &b, int16_t x, int16_t y) { return x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h; }
 
-// 4 rows x 36 px + a 36 px Done (docs/12, portal round 2; screens: portal_screen.settings_menu)
-const Btn MENU_FACING{14, 34, 292, 36}, MENU_NIGHT{14, 74, 292, 36}, MENU_PHONE{14, 114, 292, 36},
-          MENU_CAL{14, 154, 292, 36}, MENU_DONE{110, 198, 100, 36};
+// 5 rows x 36 px at y 34 + 40 i and the back pill (docs/12 "Flip screen";
+// screens: portal_screen.settings_menu). For touch each row owns its full 40 px band and the
+// back zone is x < 48, y < 34. Row 1's band starts at 34 and the last one runs to the bottom edge.
+enum MenuRow : uint8_t { ROW_FACING, ROW_NIGHT, ROW_FLIP, ROW_PHONE, ROW_CAL, ROW_COUNT };
+constexpr int16_t MENU_Y0 = 34, MENU_PITCH = 40;
+const Btn MENU_BACK{0, 0, 48, 34};
+int menuRowAt(int16_t x, int16_t y) {
+  if (x < 6 || x >= 314 || y < MENU_Y0) return -1;
+  const int i = (y - (MENU_Y0 - 2)) / MENU_PITCH;
+  return i < ROW_COUNT ? i : ROW_COUNT - 1;
+}
 const Btn FACE_MINUS{14, 104, 56, 48}, FACE_PLUS{250, 104, 56, 48}, FACE_DONE{110, 202, 100, 30};
 
 void doneButton(const Btn &b) {
@@ -29,8 +40,9 @@ void doneButton(const Btn &b) {
   drawText(*tft, "Done", b.x + b.w / 2, b.y + b.h / 2 + 6, Font::Fsb9, COL_BG, C_BASELINE);
 }
 
-void menuRow(const Btn &b, const char *label, const char *value) {
+void menuRow(int i, const char *label, const char *value) {
   TFT_eSPI &g = *tft;
+  const Btn b{14, (int16_t)(MENU_Y0 + i * MENU_PITCH), 292, 36};
   g.fillRoundRect(b.x, b.y, b.w, b.h, 8, COL_PANEL2);
   drawText(g, label, b.x + 12, b.y + 24, Font::Fs9, COL_TEXT);
   drawText(g, value, b.x + b.w - 24, b.y + 23, Font::F2, COL_MUTED, R_BASELINE);
@@ -40,16 +52,21 @@ void menuRow(const Btn &b, const char *label, const char *value) {
 void drawMenu() {
   TFT_eSPI &g = *tft;
   g.fillScreen(COL_BG);
-  drawText(g, "Settings", 160, 24, Font::Fsb12, COL_TEXT, C_BASELINE);
+  g.fillRoundRect(4, 4, 36, 24, 12, COL_PANEL2);
+  g.fillTriangle(24, 9, 24, 12, 17, 16, COL_TEXT);   // the radar / Today back chevron
+  g.fillTriangle(24, 12, 20, 16, 17, 16, COL_TEXT);
+  g.fillTriangle(24, 23, 24, 20, 17, 16, COL_TEXT);
+  g.fillTriangle(24, 20, 20, 16, 17, 16, COL_TEXT);
+  drawText(g, "Settings", 48, 23, Font::Fsb12, COL_TEXT);
   char buf[16];
   const Settings &s = settings();
   if (s.viewUpDeg == 0) snprintf(buf, sizeof(buf), "north-up");
   else snprintf(buf, sizeof(buf), "%d` %s", s.viewUpDeg, geo::compass16(s.viewUpDeg));   // ` = degree in Font 2
-  menuRow(MENU_FACING, "Facing direction", buf);
-  menuRow(MENU_NIGHT, "Dim at night", s.nightDim ? "On" : "Off");
-  menuRow(MENU_PHONE, "Phone setup", "WiFi, location");
-  menuRow(MENU_CAL, "Calibrate touch", s.touchCal ? "done" : "not set");
-  doneButton(MENU_DONE);   // (holding 3 s here still jumps to calibration)
+  menuRow(ROW_FACING, "Facing direction", buf);
+  menuRow(ROW_NIGHT, "Dim at night", s.nightDim ? "On" : "Off");
+  menuRow(ROW_FLIP, "Flip screen", s.flip ? "Turned" : "Normal");
+  menuRow(ROW_PHONE, "Phone setup", "WiFi, location");
+  menuRow(ROW_CAL, "Calibrate touch", s.touchCal ? "done" : "not set");   // (the 3 s hold also gets here)
 }
 
 void drawFacing() {
@@ -96,12 +113,13 @@ void drawCal() {
 void finishCal() {
   // Extrapolate the raw readings at the two crosses out to the screen edges.
   Settings &s = settings();
-  const float kx = (g_calRaw[1][0] - g_calRaw[0][0]) / float(CAL_PTS[1][0] - CAL_PTS[0][0]);
-  const float ky = (g_calRaw[1][1] - g_calRaw[0][1]) / float(CAL_PTS[1][1] - CAL_PTS[0][1]);
-  s.tXMin = g_calRaw[0][0] - kx * CAL_PTS[0][0];
-  s.tXMax = s.tXMin + kx * (SCREEN_W - 1);
-  s.tYMin = g_calRaw[0][1] - ky * CAL_PTS[0][1];
-  s.tYMax = s.tYMin + ky * (SCREEN_H - 1);
+  // The crosses were drawn the CURRENT way up; the extents are stored in the BASE frame
+  // (touch_map.h, host-tested both ways).
+  const TouchCal c = touchCalibrate(CAL_PTS[0], CAL_PTS[1], g_calRaw[0], g_calRaw[1], s.flip, SCREEN_W, SCREEN_H);
+  s.tXMin = c.xMin;
+  s.tXMax = c.xMax;
+  s.tYMin = c.yMin;
+  s.tYMax = c.yMax;
   s.touchCal = true;
   settingsSave();
   Serial.printf("[touch] cal x %d..%d  y %d..%d\n", s.tXMin, s.tXMax, s.tYMin, s.tYMax);
@@ -111,6 +129,7 @@ void finishCal() {
 
 void setupEnter() {
   g_page = Page::Menu;
+  g_quiet = false;
   drawMenu();
 }
 
@@ -125,11 +144,23 @@ SetupResult setupTouch(int16_t x, int16_t y) {
   Settings &s = settings();
   switch (g_page) {
     case Page::Menu:
-      if (hit(MENU_FACING, x, y)) { g_page = Page::Facing; drawFacing(); }
-      else if (hit(MENU_NIGHT, x, y)) { s.nightDim = !s.nightDim; settingsSave(); drawMenu(); }
-      else if (hit(MENU_PHONE, x, y)) return SetupResult::Portal;   // main reboots into the portal
-      else if (hit(MENU_CAL, x, y)) setupStartCal();
-      else if (hit(MENU_DONE, x, y)) return SetupResult::Done;
+      if (g_quiet) break;   // just flipped: this is the bounce
+      if (hit(MENU_BACK, x, y)) return SetupResult::Done;
+      switch (menuRowAt(x, y)) {
+        case ROW_FACING: g_page = Page::Facing; drawFacing(); break;
+        case ROW_NIGHT: s.nightDim = !s.nightDim; settingsSave(); drawMenu(); break;
+        case ROW_FLIP:   // a Tap is already the release (touch_input.cpp)
+          s.flip = !s.flip;
+          settingsSave();
+          tft->setRotation(screenRotation());
+          drawMenu();
+          g_quietUntil = millis() + 400;
+          g_quiet = true;
+          break;
+        case ROW_PHONE: return SetupResult::Portal;   // main reboots into the portal
+        case ROW_CAL: setupStartCal(); break;
+        default: break;
+      }
       break;
     case Page::Facing:
       if (hit(FACE_MINUS, x, y)) { s.viewUpDeg = (s.viewUpDeg + 345) % 360; drawFacing(); }
@@ -143,7 +174,11 @@ SetupResult setupTouch(int16_t x, int16_t y) {
 }
 
 void setupTick(uint32_t now) {
-  (void)now;
+  if (g_quiet) {   // after a flip: any press restarts the 400 ms
+    int16_t x, y;
+    if (touchPoint(x, y)) g_quietUntil = now + 400;
+    else if ((int32_t)(now - g_quietUntil) >= 0) g_quiet = false;
+  }
   if (g_page != Page::Cal) return;
   int16_t rx, ry;
   const bool down = touchRaw(rx, ry);

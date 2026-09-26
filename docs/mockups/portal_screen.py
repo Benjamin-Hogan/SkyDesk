@@ -111,20 +111,35 @@ def portal(t, d):
 
 
 def settings_menu(t, d):
-    """4 rows x 36 px + a 36 px Done (round 2). The old "Hold 3 s here to calibrate" hint is gone:
-    Calibrate touch is a row, and holding 3 s still jumps to calibration."""
+    """5 rows x 36 px (Flip screen added, 2026-09-26). Done became the back pill at (4,4) - the
+    map / radar / Today chrome - which freed the bottom row. Holding 3 s still jumps to
+    calibration. Flip screen reads Normal / Turned and applies on the finger's RELEASE: the menu
+    redraws the other way up and touch is ignored until a clean release + 400 ms (flip round 1
+    M1, no ghost tap). Each row owns its full 40 px band for touch; the back zone is y < 34."""
     t.fillScreen(S.BG)
-    t.drawString("Settings", 160, 24, "fsb12", S.TEXT, "C")
-    rows = [("Facing direction", d["facing"]), ("Dim at night", "On"), ("Phone setup", "WiFi, location"),
-            ("Calibrate touch", "done")]
+    t.fillRoundRect(4, 4, 36, 24, 12, S.PANEL2)
+    M.chevron_left(t, 17, 16, S.TEXT)
+    t.drawString("Settings", 48, 23, "fsb12", S.TEXT)
+    rows = [("Facing direction", d["facing"]), ("Dim at night", "On"), ("Flip screen", d.get("flip", "Normal")),
+            ("Phone setup", "WiFi, location"), ("Calibrate touch", "done")]
     for i, (lab, val) in enumerate(rows):
         y = 34 + i * 40
         t.fillRoundRect(14, y, 292, 36, 8, S.PANEL2)
         t.drawString(lab, 26, y + 24, "fs9", S.TEXT)
         t.drawString(val, 282, y + 23, "f2", S.MUTED, "R")
         S.chevron(t, 290, y + 18, S.MUTED)
-    t.fillRoundRect(110, 198, 100, 36, 18, S.PLANE)
-    t.drawString("Done", 160, 222, "fsb9", S.BG, "C")
+
+
+def settings_flip_moment(t, d):
+    """Flip round 1 S7: what the owner actually sees at the tap. The unit sits turned on the desk
+    with Flip screen = Normal, so the menu reads upside down; the finger (ring) is on the Flip row.
+    On release the menu redraws this way up and the next 400 ms (plus a clean release) are ignored,
+    so the bounce landing on "Dim at night" (the mirrored band) does nothing."""
+    settings_menu(t, dict(d, flip="Normal"))
+    t.img.paste(t.img.rotate(180))
+    fx, fy = 319 - 160, 239 - (114 + 18)            # the Flip row's centre, as seen turned
+    for r in (13, 14):
+        t.drawCircle(fx, fy, r, S.PLANE)
 
 
 def boot_error(t, d):
@@ -158,6 +173,8 @@ BOOT_NOTFOUND = dict(BOOT_FAIL, retry="Not found - 2.4 GHz only?")
 
 SCENARIOS = {
     "settings-menu": (settings_menu, dict(facing="north-up")),
+    "settings-menu-flipped": (settings_menu, dict(facing="north-up", flip="Turned")),
+    "settings-menu-flip-moment": (settings_flip_moment, dict(facing="north-up")),
     "portal-waiting": (portal, dict(ssid=SSID, pw=PW, mins_left=14)),
     "portal-cancel-hold": (portal, dict(ssid=SSID, pw=PW, mins_left=14, hold=0.55)),
     "portal-cancel-nudge": (portal, dict(ssid=SSID, pw=PW, mins_left=14, nudge=True)),

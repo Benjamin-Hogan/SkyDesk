@@ -32,7 +32,7 @@ SkyDesk forgets every plane the moment it leaves. Today's Sky remembers.
     `LOST_TIMEOUT_S` + 10 s.
   - A plane opened with a tap (Forced) is not a pass. Dismissing a card (long-press) does not
     un-count the pass.
-- **Nearby:** a distinct airborne aircraft seen within `POLL_RADIUS_NM` (12 nm ≈ 14 mi) during the
+- **Nearby:** a distinct airborne aircraft seen within `NEARBY_NM` (12 nm ≈ 14 mi; the V4 polls reach 25 nm) during the
   local day.
   - The map's wider poll radius (z2) does not inflate it: it counts `distNm ≤ 12` only.
   - Counted with a 4,096-bit hash set, estimated by linear counting:

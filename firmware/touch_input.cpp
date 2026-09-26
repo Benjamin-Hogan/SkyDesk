@@ -1,4 +1,5 @@
 #include "touch_input.h"
+#include "touch_map.h"
 #include "config.h"
 #include "settings.h"
 
@@ -116,8 +117,7 @@ bool touchPoint(int16_t &x, int16_t &y) {
   int16_t rx, ry;
   if (!touchRaw(rx, ry)) return false;
   const Settings &s = settings();
-  x = mapAxis(rx, s.tXMin, s.tXMax, SCREEN_W);
-  y = mapAxis(ry, s.tYMin, s.tYMax, SCREEN_H);
+  touchMapPoint(rx, ry, TouchCal{s.tXMin, s.tXMax, s.tYMin, s.tYMax}, s.flip, SCREEN_W, SCREEN_H, x, y);
   return true;
 }
 
@@ -133,8 +133,7 @@ TouchEvent touchPoll(uint32_t now) {
       g_down = true;
       g_downMs = now;
       g_holdFired = false;
-      g_x = mapAxis(rx, s.tXMin, s.tXMax, SCREEN_W);
-      g_y = mapAxis(ry, s.tYMin, s.tYMax, SCREEN_H);
+      touchMapPoint(rx, ry, TouchCal{s.tXMin, s.tXMax, s.tYMin, s.tYMax}, s.flip, SCREEN_W, SCREEN_H, g_x, g_y);
       e.x = g_x;
       e.y = g_y;
     }

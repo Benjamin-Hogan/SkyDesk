@@ -607,7 +607,7 @@ void drawStrip(TFT_eSprite &s, int16_t y0, const Traffic &t, uint32_t now) {
 void applyPollPlan() {
   const float zoomNm = RING_PX / ppn();
   g_wantNm = (uint8_t)min<float>(MAP_POLL_MAX_NM, ceilf(zoomNm * MAP_POLL_SCALE));
-  g_wantNm = max<uint8_t>(g_wantNm, POLL_RADIUS_NM);
+  g_wantNm = max<uint8_t>(g_wantNm, NEARBY_NM);   // V4: the 5 mi zoom's fast polls stay 12 nm (review)
   appSetPollPlan(g_wantNm, zoom() == 0 ? MAP_POLL_Z0_MS : ADSB_POLL_WEATHER_MS);
 }
 

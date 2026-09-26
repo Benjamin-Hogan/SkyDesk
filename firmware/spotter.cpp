@@ -249,7 +249,7 @@ void nearby(const Traffic &t) {
   bool grew = false;
   for (uint8_t i = 0; i < t.n; i++) {
     const Aircraft &a = t.ac[i];
-    if (a.onGround || a.distNm > POLL_RADIUS_NM) continue;
+    if (a.onGround || a.distNm > NEARBY_NM) continue;
     const uint16_t k = spotterSetHash(a.hex);
     if (g_set[k >> 3] & (1 << (k & 7))) continue;
     g_set[k >> 3] |= 1 << (k & 7);

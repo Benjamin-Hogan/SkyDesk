@@ -122,8 +122,8 @@ Validation happens in both the page and the firmware:
 The firmware re-checks everything; the page is only a convenience.
 
 ## Device screens (`mockups/portal_screen.py`)
-- **Settings menu:** four rows (Facing, Dim at night, **Phone setup**, Calibrate touch) at 36 px
-  each, plus Done.
+- **Settings menu:** five rows (Facing, Dim at night, **Flip screen**, **Phone setup**, Calibrate
+  touch) at 36 px each, and the back pill top left (see "Flip screen" below).
 - **Portal, waiting:**
   - QR on the left (132 px plus the quiet zone, dark on white). On the right, `ON YOUR PHONE`
     and 4 numbered steps: `Open Camera` / `Aim at the code` / `Tap Join` / `Page opens`.
@@ -214,6 +214,7 @@ The firmware re-checks everything; the page is only a convenience.
   stays.
 - **Settings:** 4 rows × 36 px at y 34/74/114/154, and Done is 100 × 36 at y 198. The hold-3-s
   hint line is gone (calibration is a row; the hold still works).
+  *Superseded by "Flip screen" below: 5 rows and a back pill.*
 - **Hotspot password alphabet:** `abcdefghjkmnpqstuwxyz`. `r` and `v` are dropped (`rn`/`m`,
   `vv`/`w` in fsb9).
 - **Parsers:** the page sends **decimal** lat/lon (already parsed); the firmware only range-checks
@@ -249,3 +250,34 @@ The firmware re-checks everything; the page is only a convenience.
   - The time-zone default follows `NTP_TZ`.
   - The boot title falls back to `your WiFi` when it would reach `retry N s`.
   - An empty Name shows the coordinates only.
+
+## Flip screen (2026-09-26; answers design-review/flip-screen-round-1-mr-stacks.md)
+The owner's desk has the unit turned 180°. **Settings → Flip screen** turns the display, and it
+is saved in NVS (`flip`, default `SCREEN_FLIP_DEFAULT`).
+- **Menu layout** (`portal_screen.settings_menu`):
+  - The back pill (36 × 24 at 4,4) and the `Settings` title, as on the map, radar and Today.
+    Done is gone.
+  - 5 rows × 36 px drawn at y = 34 + 40 i. For touch, each row owns its **full 40 px band**
+    (y 32 + 40 i … 71 + 40 i), so a ±5 px resistive miss still lands. Row 1's band starts at
+    y 34, under the back zone (x < 48, **y < 34**), and the last row's band runs to y 239.
+  - Values: `Normal` / `Turned`. (`USB left/right` was suggested, but it can't be checked from
+    here; the row answers "does it look right?", and tapping it again is the undo.)
+- **The flip moment (M1, no ghost tap):**
+  - The Flip row fires on the finger's **release**, not the press.
+  - Then the display rotates and the menu redraws, the new way up.
+  - Touch is ignored until a clean release **plus 400 ms**. The mirrored band of the Flip row is
+    mostly *Dim at night*, so a bounce must not toggle it unseen.
+  - Mock: `settings-menu-flip-moment` (the upside-down menu with the finger on the row).
+- **Recovery by design (M2):**
+  - The touch calibration is stored in the panel's **BASE** frame (rotation 1). The flip is a
+    mirror applied after mapping (`include/touch_map.h`).
+  - Calibrating while flipped draws its crosses **the current way up** and solves back to BASE,
+    so one calibration works both ways up. Host test: `test/host/test_touchmap.cpp`.
+  - The **3 s hold works anywhere on the glass** (no position test), so a wrong mapping can always
+    reach calibration. Calibrate touch sits on the bottom row, where drift is worst; the hold is
+    the escape for that too.
+- **Before the first pixel (M3):** `setup()` loads settings before `setRotation()`, so the boot,
+  error and portal screens come up the right way.
+- Flip is not *Facing direction*: turning the unit on the desk doesn't change which way the dome
+  looks at the sky.
+- Later (nice-to-have): Flip in the phone portal, as a no-touch recovery.

@@ -39,7 +39,7 @@ Response root key: **`ac`** (array). Same per-aircraft schema (readsb).
 
 → The parser must accept **either** `aircraft` or `ac`.
 
-Query radius: `POLL_RADIUS_NM` (default **12 nm**). Wider than the ENTER radius
+Query radius: `POLL_RADIUS_NM` (default **25 nm** since V4, Sky Trails, docs/13; "nearby" counts use `NEARBY_NM` 12 nm; the plane card polls 12 nm). Wider than the ENTER radius
 so the Weather screen's traffic chip and "approaching" logic have data.
 Observed size near Phoenix: ~5 KB for 9 aircraft within 10 nm (≈ 600 B/aircraft).
 Budget for 60 aircraft = ~36 KB streamed; **filtered** doc stays < 8 KB.
