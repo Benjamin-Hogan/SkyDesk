@@ -8,6 +8,9 @@ void routeInit();
 
 // Net task: true if this aircraft has no fresh cache entry yet.
 bool routeNeeded(const Aircraft &a);
+// Net task: a slot can take this aircraft without evicting a plane still within
+// LOOKUP_RADIUS_NM (else skip the lookup: no re-fetch loops).
+bool routeHasRoom(const Aircraft &a, const Traffic &t);
 // Net task: blocking HTTPS lookup; stores the result (found or not) in cache.
 void routeLookup(const Aircraft &a);
 

@@ -1,4 +1,5 @@
 #include "tracker.h"
+#include "observer.h"
 
 #include <math.h>
 
@@ -22,9 +23,29 @@ uint32_t  g_planeSinceMs = 0;
 uint32_t  g_departEndMs = 0;
 uint32_t  g_forcedEndMs = 0;
 uint32_t  g_lastFreshFeatured = 0;
+PassEvent g_evt[16];                 // pass events (docs/11): 2 x MAX_TRACKED (a whole
+                                     // snapshot of exits + enters fits)
+uint8_t   g_evtHead = 0, g_evtN = 0;
+
+void passEvent(bool enter, const char *hex) {
+  if (g_evtN == 16) {                  // full: drop the oldest (drained every UI tick)
+    g_evtHead = (g_evtHead + 1) % 16;
+    g_evtN--;
+  }
+  PassEvent &e = g_evt[(g_evtHead + g_evtN++) % 16];
+  e.enter = enter;
+  strncpy(e.hex, hex, sizeof(e.hex) - 1);
+  e.hex[sizeof(e.hex) - 1] = '\0';
+}
+
+// Wrap-safe "ms since t" (negative if t is in the future - treated as 0).
+uint32_t since(uint32_t now, uint32_t t) {
+  const int32_t d = (int32_t)(now - t);
+  return d > 0 ? (uint32_t)d : 0;
+}
 
 bool airborne(const Aircraft &a) {
-  return !a.onGround && a.altFt - OBS_ELEV_FT >= MIN_AGL_FT;
+  return !a.onGround && a.altFt - obs().elevFt >= MIN_AGL_FT;
 }
 
 bool meetsEnter(const Aircraft &a) {
@@ -101,12 +122,13 @@ void trackerUpdate(const Traffic &t, uint32_t now) {
     if (tr) {
       if (!meetsStay(a)) {
         Serial.printf("[trk] exit %s d=%.1fnm el=%.0f\n", a.hex, a.distNm, a.elDeg);
+        passEvent(false, a.hex);
         tr->used = false;
         continue;
       }
       tr->a = a;
       if (a.seenPos <= MAX_SEEN_POS_S) tr->freshMs = freshMsOf(t, a);
-    } else if (now - freshMsOf(t, a) <= MAX_SEEN_POS_S * 1000UL && meetsEnter(a)) {
+    } else if (since(now, freshMsOf(t, a)) <= MAX_SEEN_POS_S * 1000UL && meetsEnter(a)) {
       // (freshness vs *now*: a frozen snapshot must not re-enter planes it just lost)
       if ((tr = freeSlot())) {
         tr->a = a;
@@ -114,12 +136,14 @@ void trackerUpdate(const Traffic &t, uint32_t now) {
         tr->dismissed = false;
         tr->used = true;
         Serial.printf("[trk] enter %s %s d=%.1fnm el=%.0f\n", a.hex, a.callsign, a.distNm, a.elDeg);
+        passEvent(true, a.hex);
       }
     }
   }
   for (auto &tr : g_trk) {   // lost from the feed
-    if (tr.used && now - tr.freshMs > LOST_TIMEOUT_S * 1000UL) {
+    if (tr.used && since(now, tr.freshMs) > LOST_TIMEOUT_S * 1000UL) {
       Serial.printf("[trk] lost %s\n", tr.a.hex);
+      passEvent(false, tr.a.hex);
       tr.used = false;
     }
   }
@@ -174,7 +198,7 @@ void trackerUpdate(const Traffic &t, uint32_t now) {
   }
 
   // 4. Derived view fields.
-  const uint32_t age = now - g_lastFreshFeatured;
+  const uint32_t age = since(now, g_lastFreshFeatured);
   g_view.ageS = (uint8_t)min<uint32_t>(age / 1000, 255);
   g_view.stale = g_view.mode == PlaneMode::Live && age > STALE_AFTER_S * 1000UL;
   g_view.graceLeftS = g_view.mode == PlaneMode::Departing
@@ -190,6 +214,14 @@ void trackerUpdate(const Traffic &t, uint32_t now) {
 }
 
 const TrackView &trackerView() { return g_view; }
+
+bool trackerTakePassEvent(PassEvent &out) {
+  if (!g_evtN) return false;
+  out = g_evt[g_evtHead];
+  g_evtHead = (g_evtHead + 1) % 16;
+  g_evtN--;
+  return true;
+}
 
 bool trackerTakeArrival() {
   const bool a = g_arrival;

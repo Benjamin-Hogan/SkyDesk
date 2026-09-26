@@ -41,3 +41,24 @@ The designer had to respond to every required change. The brief was three rounds
 - **Map: the disc is "nearby", not the trigger.** Inside it the strip shows `20° up` (v2-R2-1).
 - **Map: miles, plain altitudes (`7.2k`), and the type before the flight number in the strip** (v2-R1-5/6, v2-R2-2).
 - **Map: band sprite, no anti-aliased calls in 4-bit sprites** (tftsim enforces it) (v2-R1-8).
+- **"Radar" means rain radar; the ADS-B feed is "Traffic"** (`Traffic offline`, the boot row `Traffic`). The two can fail independently, and the words must say which one did (v3-R1-5).
+- **Map focus: selected > will-pop > just popped (30 s) > nearest.** The idle pause behind a will-pop focus is capped at 300 s since the last touch (v3-R1-4, v3-R1-11).
+- **Map: the focus tag never clips glyphs.** Its backing covers whole glyphs (and badges), or the tag becomes a callout (v3-R1-7).
+- **Radar never lies "No rain":** exact n0q colours only (> 0.5 % misses rejects the frame), an empty-after-wet frame is re-fetched once, quorum < 95 % gives a WARN (v3-R1-1).
+- **Radar words always describe the newest frame**, whatever frame the loop is showing (v3-R1-3).
+- **The weather condition text is never dropped** for the rain cue; the cue has its own slot (v3-R1-2).
+- **Radar clutter: a measured static mask plus a 6 px blob floor.** Change them only by re-running `tools/radar/make_clutter_mask.py` and updating the table in 10 (v3-R1-6).
+- **Radar never says "No rain" over drawn echoes** (`Small echoes only`), and rain within 5 mi is always named, whatever its size (v3-R3-1).
+- **Idle uses two stamps:** card returns restart the 120 s timer but never the 300 s cap since the last real touch (v3-R3-2).
+- **3.0 Today: the chip opens the map in every state.** In its `Passed N min ago` state, the map
+  focuses that plane (the chip-passed tier). A tap's target never changes on a timer
+  (3.0-today-R1-1).
+- **3.0 Today: the header row (y 0–36) is the Today entry**, with `· 31 overhead ›` after the date,
+  fitted by `headerEntryFit()` so it never overprints a degraded status. The hero band that opens
+  the radar is y 36–112. The clock is not a target (R1-3, R2-1).
+- **3.0 Today: not watching is not quiet.** Outage hours get a stipple under their bars, not a zero.
+  A lost hash set shows `~212 since reboot` ("at most"), not `212+` (R1-4, R2-2).
+- **3.0 Today: the last passes survive midnight**, and earlier-day times are DIM under
+  `SINCE YESTERDAY` (R1-5, R2-5).
+- **3.0 Today: one font per row; identity beats route.** Only plausible routes are shown, and
+  well-known IATA codes (`BA A350-1000`) keep the route on screen (R1-2).

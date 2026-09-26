@@ -2,7 +2,7 @@
 
 namespace {
 SemaphoreHandle_t g_mtx = nullptr;
-Traffic g_traffic;           // ~5 KB each - static, never on the stack
+Traffic g_traffic;           // the ONE shared copy (net task writes it under the lock)
 Weather g_weather;
 NetStatus g_net;
 volatile UiScreen g_screen = UiScreen::Boot;
@@ -22,12 +22,10 @@ void appStateInit() {
   memset(&g_net, 0, sizeof(g_net));
 }
 
-void appSetTraffic(const Traffic &t) {
-  Lock l;
-  const uint32_t v = g_traffic.version + 1;
-  g_traffic = t;
-  g_traffic.version = v;
-}
+Traffic &appTrafficShared() { return g_traffic; }
+void appTrafficLock() { xSemaphoreTake(g_mtx, portMAX_DELAY); }
+void appTrafficUnlock() { xSemaphoreGive(g_mtx); }
+void appTrafficPublish() { Lock l; g_traffic.version++; }
 
 void appSetWeather(const Weather &w) {
   Lock l;
@@ -69,3 +67,19 @@ void appGetPinnedHex(char out[7]) {
   Lock l;
   memcpy(out, g_pinned, 7);
 }
+
+namespace {
+RadarStatus g_radar{};
+}
+volatile uint32_t g_radarAck = 0;
+uint32_t appSetRadar(const RadarStatus &r) {
+  Lock l;
+  const uint32_t v = g_radar.version + 1;
+  g_radar = r;
+  g_radar.version = v;
+  return v;
+}
+void appRadarAck(uint32_t v) { g_radarAck = v; }
+uint32_t appRadarAcked() { return g_radarAck; }
+void appGetRadar(RadarStatus &out) { Lock l; out = g_radar; }
+uint32_t appRadarVersion() { Lock l; return g_radar.version; }

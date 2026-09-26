@@ -8,9 +8,13 @@
 #pragma once
 
 #include <Arduino.h>
+#ifdef SKYDESK_HOST_TEST
+#include "secrets.h.example"   // host tests: fixtures are relative to the default location
+#else
 #include "secrets.h"
+#endif
 
-#define FW_VERSION        "1.0.0"
+#define FW_VERSION        "3.0.0-dev"
 #define USER_AGENT        "SkyDesk/" FW_VERSION " (ESP32 CYD)"
 
 // --------------------------------------------------------------------------
@@ -58,7 +62,8 @@
 // --------------------------------------------------------------------------
 //  Polling (docs/04-data-sources.md)
 // --------------------------------------------------------------------------
-#define POLL_RADIUS_NM        12
+#define POLL_RADIUS_NM        25    // V4 Sky Trails: PHX (~17 nm) streams (docs/13); was 12
+#define NEARBY_NM             12    // "N nearby" and Today's nearby keep their 3.0 meaning
 #define LOOKUP_RADIUS_NM      6.0f
 #define ADSB_POLL_WEATHER_MS  5000
 #define ADSB_POLL_PLANE_MS    2000
@@ -67,7 +72,7 @@
 #define WEATHER_POLL_MS       600000UL   // 10 min
 #define WEATHER_RETRY_MS      60000UL
 #define WEATHER_STALE_S       1800       // header warns after 30 min
-#define ROUTE_CACHE_N         16
+#define ROUTE_CACHE_N         8     // 3.0: was 16; pays for Today's Sky (docs/11 -> RAM)
 #define ROUTE_TTL_MS          (6UL * 3600UL * 1000UL)
 #define HTTP_TIMEOUT_MS       7000
 #define WIFI_RETRY_MS         12000
@@ -82,6 +87,59 @@
 #define MAP_TAP_RADIUS_PX     28     // fingertip on resistive touch is ~56 px
 #define MAP_CLUSTER_PX        12     // 20 mi zoom: merge planes closer than this
 #define MAP_OFFLINE_KEEP_S    60     // radar down: keep dimmed positions this long
+// v3 (docs/09-map-v3.md)
+#define MIN_VRATE_FPM       300    // climbing / descending shown beyond this (card + map ticks)
+#define MAP_POP_STEP_S      5      // will-pop path sampling step (12 samples to +60 s)
+#define MAP_CYCLE_MS        3000   // a repeat tap within this time (and 28 px) cycles
+#define MAP_AFTER_POP_S     30     // the popped plane stays focused this long
+#define MAP_LEADER_S        60     // focus leader length in seconds of flight
+// Today's Sky (docs/11-today.md)
+#define TODAY_MERGE_S       600    // the same hex back within this is the same pass
+#define TODAY_PASSED_S      600    // the chip says "Passed N min ago" this long
+#define TODAY_PROMISE_TOL_S 15     // a Heads-up promise is kept within max(this, 30 % of lead)
+#define TODAY_RARE_MAX_DAYS 3      // a type seen on this many earlier days is never "rarest"
+#define TODAY_LEARN_DAYS    3      // rarest says "learning" until this many days are logged
+#define TODAY_GATE_MIN_N    30     // Heads-up gate: at least this many promises in 7 days ...
+#define TODAY_GATE_PCT      80     // ... and at least this share kept
+#define TODAY_IDLE_S        120    // Today page: no touch -> weather
+#define TODAY_OUTAGE_MIN    5      // an hour with more traffic outage than this is dotted
+// Sky Trails (docs/13-sky-trails.md)
+#define TRAILS_KEEP_DAYS    30     // day files older than this are deleted (a day is ~3-11 MB)
+// Setup portal (docs/12-setup-portal.md)
+#define SETUP_GATE_MI       0.1    // a saved location this close to the build centre keeps the street maps
+#define SETUP_RADAR_GATE_MI 1.0    // ... and this close keeps the radar (a radar pixel is ~0.5 mi)
+#define SETUP_AUTO_S        180    // network visible but joining fails this long -> the portal opens
+#define SETUP_IDLE_S        900    // the portal with no phone joined this long -> reboot to normal
+#define SETUP_AUTO_IDLE_S   300    // ... after an AUTOMATIC entry (the router may just be refusing briefly)
+#define SETUP_SESSION_S     1800   // a joined session with no request this long ends (abandoned)
+#define SETUP_AUTO_CAP_S    600    // an AUTOMATIC portal lasts at most this unless the page is open
+#define SETUP_HOLD_MS       1000   // Cancel fires on a hold this long (R2-9)
+
+// Rain radar (docs/10-rain-radar.md)
+#define RADAR_DBZ_LIGHT     20     // level thresholds (n0q dBZ); below LIGHT = dropped
+#define RADAR_DBZ_MODERATE  30
+#define RADAR_DBZ_HEAVY     40
+#define RADAR_DBZ_VHEAVY    50
+#define RADAR_DBZ_EXTREME   60
+#define RADAR_MIN_BLOB_PX   6      // 8-connected, after the static clutter mask (docs/10 -> Clutter)
+#define RADAR_FRAMES        6      // loop length, 10 min apart
+#define RADAR_FRAME_STEP_S  600
+#define RADAR_CUE_MAX_MI    40     // weather rain cue: 2..40 mi
+#define RADAR_CUE_MIN_MI    2
+#define RADAR_STALE_MIN     15     // newest frame older: WARN chip, loop stops
+#define RADAR_CLEAR_MIN     60     // older: no rain drawn (offline)
+#define RADAR_POLL_WET_S    600    // cue fetch cadence when rain is plausible
+#define RADAR_POLL_DRY_S    1800   // ... otherwise
+#define RADAR_POLL_OPEN_S   120    // radar screen open: n0q_0.json every 2 min (v3-R1-9)
+#define RADAR_IDLE_S        120
+#define RADAR_DEFER_MAX_S   120    // radar work deferred for a hot sky at most this long (v3-R2-1)
+#define RADAR_QUORUM_MIN    95     // % of radars reporting, below = 'partial coverage'
+#define RADAR_MISS_PERMILLE 5      // > 0.5 % non-n0q colours = frame unreadable (v3-R1-1)
+#define RADAR_NAME_MIN_PX   12     // a blob is NAMED (strip/cue) if >= this with moderate+ ...
+#define RADAR_NAME_LIGHT_PX 40     // ... or >= this of any rain (virga filter)  (v3-R2-2)
+#define RADAR_NAME_ALWAYS_MI 5     // ... or ANY size this close to you (v3-R3-1)
+#define RADAR_CUE_MAX_AGE_MIN 30   // the weather cue is never drawn from an older frame
+#define MAP_IDLE_MAX_S      300    // since the last REAL touch; card returns don't reset it (v3-R3-2)
 
 #define ADSB_PRIMARY_URL      "https://opendata.adsb.fi/api/v2/lat/%.4f/lon/%.4f/dist/%d"
 #define ADSB_FALLBACK_URL     "https://api.adsb.lol/v2/point/%.4f/%.4f/%d"
@@ -90,7 +148,8 @@
 // --------------------------------------------------------------------------
 //  Display
 // --------------------------------------------------------------------------
-#define TFT_ROTATION      1
+#define TFT_ROTATION      1      // BASE landscape; Settings -> Flip screen turns it 180 (rotation 3)
+#define SCREEN_FLIP_DEFAULT true // the owner's desk: flipped (2026-09-26)
 #define SCREEN_W          320
 #define SCREEN_H          240
 #define UI_TICK_MS        25
@@ -104,12 +163,14 @@
 #define LDR_AUTO          0
 
 // --------------------------------------------------------------------------
-//  Touch (XPT2046 on its own bus - driven by XPT2046_Touchscreen)
+//  Touch (XPT2046, bit-banged in touch_input.cpp - HSPI belongs to the SD card)
 // --------------------------------------------------------------------------
 #define TOUCH_SCLK        25
 #define TOUCH_MOSI        32
 #define TOUCH_MISO        39
 #define TOUCH_CS          33
+// Uncalibrated raw extents, in the BASE orientation (rotation 1). The flip is applied to screen
+// coordinates after mapping (touch_input.cpp), so these never change with it.
 #define TOUCH_RAW_MIN_X   200
 #define TOUCH_RAW_MAX_X   3700
 #define TOUCH_RAW_MIN_Y   240
@@ -118,6 +179,16 @@
 #define TAP_MAX_MS        600
 #define LONG_PRESS_MS     1000
 #define SETTINGS_HOLD_MS  3000
+
+// --------------------------------------------------------------------------
+//  microSD (v3, docs/10): own SPI bus = the HSPI peripheral on the CYD slot pins
+// --------------------------------------------------------------------------
+#define SD_SCLK           18
+#define SD_MISO           19
+#define SD_MOSI           23
+#define SD_CS             5
+#define SD_FREQ_HZ        20000000
+#define SD_MAX_FILES      2          // each costs ~4.6 KB of heap, mounted for good at boot (sd_store.cpp)
 
 // Onboard RGB LED (active-LOW)
 #define LED_R_PIN         4

@@ -18,5 +18,9 @@ void planeLabels(const Aircraft &a, const RouteInfo *route, PlaneLabels &out);
 // ICAO designator -> {manufacturer, short model}. False if unknown.
 bool typeLookup(const char *icao, const char *&mfr, const char *&model);
 
+// Callsign prefix -> airline name from the built-in table ("SWA1637" -> "Southwest").
+// Never an owner. False (out = "") when the prefix isn't a known airline.
+bool airlineByCallsign(const char *callsign, char *out, size_t n);
+
 // "SOUTHWEST AIRLINES CO" -> "Southwest"
 void shortOperator(const char *in, char *out, size_t n);

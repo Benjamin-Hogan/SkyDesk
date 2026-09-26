@@ -36,3 +36,8 @@ extern const MapLabel MAP_TOWNS[];
 extern const uint8_t MAP_TOWN_N;
 extern const MapLabel MAP_AIRPORTS[];
 extern const uint8_t MAP_AIRPORT_N;
+
+// Rain radar view (docs/10): one wide zoom + towns in population order.
+extern const MapZoom RADAR_BASEMAP;
+extern const MapLabel RADAR_TOWNS[];
+extern const uint8_t RADAR_TOWN_N;

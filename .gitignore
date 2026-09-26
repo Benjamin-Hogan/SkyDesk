@@ -15,3 +15,8 @@ __pycache__/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Build caches. Those generated around a secrets.h observer (the owner's home) never get
+# committed; the default-location caches the mockups need are tracked explicitly.
+tools/basemap/cache/
+tools/radar/cache/

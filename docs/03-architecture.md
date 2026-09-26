@@ -6,8 +6,8 @@
 
 ## Stack
 - PlatformIO, `espressif32`, `esp32dev`, Arduino framework.
-- Libraries (pinned in `platformio.ini`): `bodmer/TFT_eSPI`,
-  `PaulStoffregen/XPT2046_Touchscreen`, `bblanchon/ArduinoJson@^7`.
+- Libraries (pinned in `platformio.ini`): `bodmer/TFT_eSPI`, `bblanchon/ArduinoJson@^7`.
+  Touch is bit-banged (`touch_input.cpp`) and SD uses the core's `SD` library (02 → Touch).
 - No async web server in v1 (keeps RAM for TLS). OTA via `ArduinoOTA` is
   optional behind `ENABLE_OTA`.
 
@@ -25,21 +25,30 @@ SkyDesk/
 │  ├─ main.cpp               # setup/loop, screen state machine, touch routing, backlight, LED
 │  ├─ app_state.cpp          # shared snapshots + mutex (net task <-> UI)
 │  ├─ net_task.cpp           # core 0: WiFi, NTP, poll schedule, route lookups
-│  ├─ http_json.cpp          # one HTTPS GET streamed into ArduinoJson with a filter
+│  ├─ http_json.cpp          # HTTPS GETs: JSON with a filter, streamed per-object, raw body -> sink
 │  ├─ adsb_client.cpp        # adsb.fi / adsb.lol fetch + failover
-│  ├─ adsb_parse.cpp         # readsb JSON -> Aircraft[] (pure, host-tested)
+│  ├─ adsb_parse.cpp         # readsb JSON -> Aircraft[], one object at a time (pure, host-tested)
 │  ├─ route_client.cpp       # adsbdb lookup + LRU cache
 │  ├─ route_plausible.cpp    # "schedules lie" check (pure, host-tested)
 │  ├─ weather_client.cpp     # Open-Meteo fetch + WMO code mapping
 │  ├─ geo.cpp                # haversine, bearing, elevation, cross-track (pure, host-tested)
 │  ├─ tracker.cpp            # ENTER/EXIT, dwell, grace, featured plane (pure, host-tested)
+│  ├─ map_model.cpp          # map: projection, trails, will-pop, focus, tap cycle, strip, idle (pure)
+│  ├─ basemap_data.cpp       # GENERATED (tools/basemap): map zooms + radar zoom R, labels
+│  ├─ sd_store.cpp           # microSD on HSPI: mount + write/read-back self-test
+│  ├─ radar_client.cpp       # core 0: IEM n0q frames -> SD (download, convert, index, prune)
+│  ├─ radar_model.cpp        # TIFF parse, n0q colour -> level, per-blob clean, nearest (pure)
+│  ├─ radar_table.cpp        # GENERATED (tools/radar/make_radar_table.py): n0q colour table
+│  ├─ radar_clutter.cpp      # GENERATED (tools/radar/make_clutter_mask.py): static clutter mask
 │  ├─ aircraft_names.cpp     # ICAO type table, operator shortening, header labels
 │  ├─ settings.cpp           # NVS: facing direction, night dim, touch calibration
-│  ├─ touch_input.cpp        # XPT2046 polling -> tap / release-long-press / hold
+│  ├─ touch_input.cpp        # XPT2046 (bit-banged) -> tap / release-long-press / hold
 │  ├─ ui_common.cpp          # fonts, drawNumber, degree ring, glyphs, weather icons
 │  ├─ ui_screens.cpp         # sprite allocation, wipe, time formatting, boot screen
 │  ├─ ui_weather.cpp         # Weather screen
 │  ├─ ui_plane.cpp           # Plane screen (dome, LOOK, route, stats)
+│  ├─ ui_map.cpp             # Plane map (docs/08, 09), band-rendered
+│  ├─ ui_radar.cpp           # Rain radar (docs/10), band-rendered from SD frames
 │  └─ ui_setup.cpp           # Settings menu, Facing dial, touch calibration
 ├─ test/host/                # g++ host tests: sh test/host/run.sh
 └─ docs/                     # this series + mockups + design review
@@ -62,12 +71,16 @@ SkyDesk/
   releases it before drawing. Never hold the mutex while drawing or doing HTTP.
 - The UI tells the net task its current screen (`uiScreen` field) so the poll
   cadence can switch between 5 s and 2 s.
+- **Radar work** (docs/10 → Scheduling) also runs in the net task: at most one frame per
+  pass, an ADS-B poll between any two frames, and none while a card is up or a plane is
+  will-pop or qualifying (capped at 120 s of deferral). The UI reads frames from SD and
+  **acknowledges** each frame list (`appRadarAck`); the net task deletes a file only after that.
 
 ## Shared state (POD, fixed-size — no `String` inside)
 ```cpp
 struct Aircraft {            // one row from the ADS-B feed, enriched
   char hex[7]; char callsign[9]; char reg[9]; char type[5];
-  char desc[24]; char ownOp[24];
+  char desc[24];   // (3.0: ownOp dropped - RAM, and it names private owners)
   float lat, lon; int32_t altFt; bool onGround;
   float gsKt, track; int16_t vRateFpm; char category[3];
   float seenPos;
@@ -99,6 +112,12 @@ closest.
                                              │  plane)  │◄────────────── │ grace 4 s│
                                              └──────────┘ plane re-ENTERs└──────────┘
 ```
+v2/v3 add two screens the user opens, both returning to weather after 120 s idle:
+- **MAP** (weather traffic chip, docs/08-09). The card pops over it and returns to it.
+- **RADAR** (weather hero, docs/10). The card pops over it and returns to it.
+- Idle uses two stamps: a touch or a card return restarts the timer, but the 300 s cap counts
+  from the last real touch (`mapIdleExpired`).
+
 - `tracker.update()` is pure logic over a snapshot + `millis()`; it returns
   `{screen, featuredHex, extraCount}`. Keep it free of drawing so it's testable.
 - Dismissed hexes (long-press) go in a small set; they can't re-trigger until
@@ -147,8 +166,15 @@ closest.
 | One TLS session (sequential) | ~45 |
 | Traffic snapshot ×2 (net + UI copy) | ~10 |
 | JSON doc (filtered) | ≤ 12 |
-| Sprites (dome 16-bit + 4 text 4-bit, persistent) | ~55 |
-| **Must remain free** | **≥ 60** |
+| Sprites (dome 16-bit + 4 text 4-bit + 320×48 map/radar band, persistent) | ~63 |
+| Radar: convert buffers, transient (after TLS closes; blob table borrows the ADS-B buffer) | ~5 |
+| SD via SdFat (mounted once at boot) | ~1.5 |
+| Today's Sky (3.0, static; net +2.1 after `ROUTE_CACHE_N` 16 → 8, docs/11) | ~3.8 |
+| **Must remain free (8-bit RAM, `heap_caps_*(MALLOC_CAP_8BIT)`, NOT `ESP.getFreeHeap()`)** | **≥ 60** |
+
+`ESP.getFreeHeap()` includes the ~40 KB EXEC-only IRAM heap that TLS can't use; it overstated
+free RAM by that much and hid the v3 regression (docs/10 → *Memory: what the field taught us*).
+One TLS session needs ~45–57 KB of 8-bit RAM depending on the host's certificate chain.
 
 ## Configuration
 - `include/config.h`: every threshold named in `01-product-spec.md`, poll

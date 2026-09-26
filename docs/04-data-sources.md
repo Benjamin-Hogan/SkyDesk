@@ -11,6 +11,7 @@
 | Aircraft near me | **adsb.fi** opendata v2 | **adsb.lol** v2 | none | ≥ 2 s between calls (provider limit 1 req/s) |
 | Type / operator / route | **adsbdb.com** v0 | built-in type table | none | 1 lookup per new aircraft, cached |
 | Weather | **Open-Meteo** | last-good cache | none | every 10 min |
+| Rain radar (v3) | **IEM NEXRAD n0q** composite (WMS-T, TIFF) | keep the previous frame | none | JSON every 2–30 min; one ~300 KB frame when `valid` changes (docs/10) |
 
 > ❌ `api.airplanes.live` was tested and now returns
 > `{"error":"Please contact us..."}` for unregistered clients. Don't use it
@@ -38,7 +39,7 @@ Response root key: **`ac`** (array). Same per-aircraft schema (readsb).
 
 → The parser must accept **either** `aircraft` or `ac`.
 
-Query radius: `POLL_RADIUS_NM` (default **12 nm**). Wider than the ENTER radius
+Query radius: `POLL_RADIUS_NM` (default **25 nm** since V4, Sky Trails, docs/13; "nearby" counts use `NEARBY_NM` 12 nm; the plane card polls 12 nm). Wider than the ENTER radius
 so the Weather screen's traffic chip and "approaching" logic have data.
 Observed size near Phoenix: ~5 KB for 9 aircraft within 10 nm (≈ 600 B/aircraft).
 Budget for 60 aircraft = ~36 KB streamed; **filtered** doc stays < 8 KB.
@@ -51,7 +52,7 @@ Budget for 60 aircraft = ~36 KB streamed; **filtered** doc stays < 8 KB.
 | `r` | string | Registration (`N429WN`) | May be missing |
 | `t` | string | ICAO type designator (`B737`) | May be missing |
 | `desc` | string | Type description (`BOEING 737-700`) | adsb.fi only; uppercase |
-| `ownOp` | string | Owner/operator (`SOUTHWEST AIRLINES CO`) | adsb.fi only |
+| `ownOp` | string | Owner/operator (`SOUTHWEST AIRLINES CO`) | adsb.fi only. **Not parsed since 3.0** (RAM; it names private owners) |
 | `alt_baro` | number **or** `"ground"` | Pressure altitude, ft | Check type before reading! |
 | `alt_geom` | number | GNSS altitude, ft | Prefer for geometry when present |
 | `gs` | number | Ground speed, kt | |
@@ -62,12 +63,15 @@ Budget for 60 aircraft = ~36 KB streamed; **filtered** doc stays < 8 KB.
 | `category` | string | `A1`..`A7`, `B*` | A1 light, A3 large, A5 heavy, A7 rotorcraft |
 | `dst`, `dir` | number | Distance (nm) / bearing from query point | Handy, but **recompute** ourselves from our exact observer coords |
 
-ArduinoJson filter (apply to both `aircraft` and `ac`):
+**Parsed as a stream, one aircraft object at a time** (`adsbParseStream`, since v2): at an 18 nm
+radius, parsing the whole document ran out of heap while TLS was open. Memory use is now
+constant. A stream that breaks off mid-array returns −2, and no partial snapshot is published.
+The per-object filter uses the same fields as the old whole-document filter:
 ```cpp
 JsonDocument f;
 for (const char* k : {"aircraft", "ac"}) {
   JsonObject a = f[k].add<JsonObject>();
-  for (const char* fld : {"hex","flight","r","t","desc","ownOp","alt_baro",
+  for (const char* fld : {"hex","flight","r","t","desc","alt_baro",
        "alt_geom","gs","track","baro_rate","geom_rate","lat","lon","seen_pos",
        "category"}) a[fld] = true;
 }
@@ -76,7 +80,7 @@ for (const char* k : {"aircraft", "ac"}) {
 ### Provider failover
 - 3 consecutive failures (non-200, timeout, JSON error) on primary → switch to
   fallback for 10 minutes, then try primary again.
-- Failures on both → Weather traffic chip shows "radar offline"; Plane screen
+- Failures on both → Weather traffic chip shows "Traffic offline" ("Radar" means rain, v3); Plane screen
   (if up) keeps last state until `LOST_TIMEOUT_S`, then returns to Weather.
 
 ---
@@ -123,7 +127,7 @@ Math is in `05-sky-geometry.md`.
 
 ### Display names
 - Operator: prefer `flightroute.airline.name`; else `registered_owner`; else
-  `ownOp` (title-cased); else "Private".
+  the airline table (by callsign); else "Private". (`ownOp` is no longer used, since 3.0.)
 - Type: `manufacturer` + friendly model from the **built-in type table**
   (`firmware/aircraft_types.cpp`, ICAO designator → "Boeing 737-700"). The
   adsbdb `type` string (`737NG 7H4/W`) is too cryptic for display. Fallback order:
@@ -162,8 +166,19 @@ Units are configurable in `config.h` (`UNITS_IMPERIAL 1`).
 
 ---
 
+## 4. Rain radar: Iowa Environmental Mesonet (v3)
+Full rules, states and pipeline: `10-rain-radar.md`. The short version:
+- `GET https://mesonet.agron.iastate.edu/data/gis/images/4326/USCOMP/n0q_0.json`
+  → `meta.valid` (the newest composite, ISO UTC) and `meta.radar_quorum` (`"144/147"`).
+- `GET https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&LAYERS=nexrad-n0q-wmst&STYLES=&SRS=EPSG:4326&BBOX=<w,s,e,n>&WIDTH=320&HEIGHT=240&FORMAT=image/tiff&TRANSPARENT=true&TIME=<valid>`
+  → **uncompressed** little-endian RGBA TIFF, 307,886 bytes, **planar** (40 strips of 25 rows), IFD at offset 8.
+- Colours are the official n0q ramp (`tools/radar/composite_n0q.txt`, from pyIEM): 255 exact
+  colours, 0.5 dBZ apart. Lookups are exact; > 0.5 % misses rejects the frame.
+- Archived frames exist back to 2011 (5-min steps), which is how the mockups use real storms.
+
 ## Politeness checklist
 - [ ] Never poll ADS-B faster than every 2 s; never in parallel.
 - [ ] Back off ×2 (max 60 s) on HTTP 429 / 5xx.
 - [ ] Cache adsbdb; lookups only for nearby aircraft.
 - [ ] Send the User-Agent string.
+- [ ] IEM: JSON first; a frame only when `valid` changes; one request at a time; backoff 60 s × 2ⁿ (max 30 min).

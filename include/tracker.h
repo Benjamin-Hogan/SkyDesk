@@ -32,6 +32,15 @@ const TrackView &trackerView();
 // true once per arrival (weather -> plane), for the arrival cue
 bool trackerTakeArrival();
 
+// Overhead-pass events for Today's Sky (docs/11-today.md): Enter when an aircraft passes
+// the ENTER test (a Forced / tapped plane never does), Leave on EXIT or lost. Queued in
+// order; the spotter drains them right after trackerUpdate().
+struct PassEvent {
+  bool enter;
+  char hex[7];
+};
+bool trackerTakePassEvent(PassEvent &out);
+
 // Touch actions
 void trackerTapNext();
 void trackerDismiss(uint32_t nowMs);

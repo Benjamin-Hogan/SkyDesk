@@ -198,16 +198,32 @@ def wx_icon(t, cx, cy, s, kind, day, bg):
 def weather(t: TFT, d: dict):
     t.fillScreen(BG)
     # Header: date left; status only when degraded (no permanent clutter)
-    t.drawString(d["date"], 10, 17, "f2", MUTED)
+    dw = t.drawString(d["date"], 10, 17, "f2", MUTED)
+    status_left = 320
     if d.get("stale"):
         w = t.drawString(d["stale"], 296, 17, "f2", WARN, "R")
         t.fillCircle(305, 12, 3, WARN)
+        status_left = 296 - w
+    if d.get("overhead") is not None:     # the Today entry (docs/11): header row y 0-36 is its target
+        entry = __import__("today_screen").header_entry_fit(t, d["overhead"], 10 + dw, status_left)
+        if entry:                           # drawSep: the date and the count don't run together
+            dot(t, 10 + dw + 8, 12, DIM)
+            ow = t.drawString(entry, 10 + dw + 16, 17, "f2", MUTED)
+            chevron(t, 10 + dw + 16 + ow + 5, 12, MUTED)
 
     # Hero: icon + temperature + condition
     hero_c = MUTED if d.get("stale") else TEXT
     wx_icon(t, 40, 62, 1.5, d["kind"], d["day"], BG)
     temp(t, 80, 82, d["temp"], "fsb24", hero_c)
-    t.drawString(d["cond"], 82, 104, "fs9", MUTED)
+    cw = t.drawString(d["cond"], 82, 104, "fs9", MUTED)   # the condition is NEVER dropped (v3-R1-2)
+    cue = d.get("rain_cue")   # docs/10: its own slot, right-aligned under the sunset line
+    if cue:
+        for tok in ("fs9", "f2"):                          # fs9, else f2 if it would come within 8 px
+            cue_w = t.textWidth(cue, tok) + 11
+            if 306 - cue_w >= 82 + cw + 8:
+                break
+        rw = t.drawString(cue, 306 - 11, 104, tok, RAIN, "R")
+        chevron(t, 306 - 6, 99, RAIN)
 
     # Clock
     w = t.textWidth("PM", "f2")
@@ -246,6 +262,9 @@ def weather(t: TFT, d: dict):
 
     # Traffic chip (tappable -> chevron)
     t.fillRoundRect(6, 215, 308, 23, 11, PANEL2)
+    if d.get("passed"):                   # chipMessage() row 2 (docs/11-today.md)
+        __import__("today_screen").passed_chip(t, d["passed"])
+        return
     radar_ok = d["traffic"] is not None
     plane_glyph(t, 21, 226, 45, 0.55, PLANE if radar_ok else DIM)
     if radar_ok:
@@ -254,7 +273,7 @@ def weather(t: TFT, d: dict):
         t.drawString(nearest, 296, 231, "f2", MUTED, "R")
         chevron(t, 302, 226, MUTED)
     else:
-        t.drawString("Radar offline", 36, 231, "f2", WARN)
+        t.drawString("Traffic offline", 36, 231, "f2", WARN)
         t.drawString(d["radar_retry"], 304, 231, "f2", MUTED, "R")
 
 
@@ -599,11 +618,12 @@ HOURLY_NIGHT = [dict(h=h, kind="clear", t=tt, pop=0, day=False) for h, tt in
 SCENARIOS = {
     "weather": (weather, dict(date="THU  SEP 24", kind="partly", day=True, temp=94, cond="Mostly sunny",
                               time="3:42", ampm="PM", sun_evt="Sunset 6:20", feels=97, hi=99, lo=76, hum=18,
-                              wind="NW 7", hourly=HOURLY_DAY, traffic=("4", "737-800  5.2 mi W"))),
+                              wind="NW 7", hourly=HOURLY_DAY, traffic=("4", "737-800  5.2 mi W"),
+                              overhead=31)),
     "weather-degraded": (weather, dict(date="THU  SEP 24", kind="partly", day=False, temp=77, cond="Partly cloudy",
                                        time="9:18", ampm="PM", sun_evt="Sunrise 6:17", feels=77, hi=86, lo=72, hum=49,
                                        wind="N 4", hourly=HOURLY_NIGHT, traffic=None, radar_retry="retrying in 30 s",
-                                       stale="Updated 47 min ago")),
+                                       stale="Updated 47 min ago", overhead=104)),
     "plane-airliner-multi": (plane, aircraft(45, 2.05, 12400, 20, 250, 1800, op="Southwest", type="737-800",
                                              sub=["WN 2208", "N8563Z"], pill=("+1 more", PLANE),
                                              route=dict(kind="ok", o="PHX", d="DEN", oc="Phoenix", dc="Denver"),
@@ -626,10 +646,10 @@ SCENARIOS = {
     "plane-ga-rotated": (plane, aircraft(20, 0.7, 3600, 150, 110, 400, type="Piper PA-28", sub=["N4312K"],
                                          view_up=200, route=None)),
     "boot-ok": (boot, dict(ver="v1.0.0", steps=[("ok", "WiFi", "HomeNet  -58 dBm"), ("ok", "Clock", "3:41 PM"),
-                                                 ("busy", "Weather", ""), ("todo", "Radar", "")],
+                                                 ("busy", "Weather", ""), ("todo", "Traffic", "")],
                            hint=["Gilbert, AZ  33.35, -111.79"])),
     "boot-error": (boot, dict(ver="v1.0.0", steps=[("fail", 'Can\'t join "HomeNet"', ""), ("todo", "Clock", ""),
-                                                    ("todo", "Weather, radar", "")],
+                                                    ("todo", "Weather, traffic", "")],
                               retry="Retrying in 12 s  (attempt 3)",
                               hint=["Check WIFI_SSID / WIFI_PASSWORD in secrets.h", "2.4 GHz networks only"])),
     "setup-facing": (setup_facing, dict(view_up=200)),
@@ -645,6 +665,24 @@ SCENARIOS = {
                                                       dc="Phoenix"))),
 }
 
+HOURLY_STORM = [dict(h="8PM", kind="rain", t=93, pop=40, day=False), dict(h="9PM", kind="rain", t=88, pop=50, day=False),
+                dict(h="10PM", kind="cloud", t=86, pop=30, day=False), dict(h="11PM", kind="cloud", t=85, pop=20, day=False),
+                dict(h="12AM", kind="clear", t=84, pop=10, day=False), dict(h="1AM", kind="clear", t=83, pop=5, day=False)]
+def _cue(cond, kind, cue, day=False):
+    return lambda: dict(SCENARIOS["weather"][1], date="THU  JUL 31", temp=97, hourly=HOURLY_STORM, hum=31,
+                        wind="W 14", hi=104, lo=84, feels=99, cond=cond, time="7:30", sun_evt="Sunset 7:34",
+                        kind=kind, day=day, rain_cue=cue() if callable(cue) else cue)
+
+
+_REAL_CUE = lambda: __import__("radar_screen").cue_from("scattered")   # noqa: E731  real frame: 'rain 10 mi W'
+WEATHER_V3 = {   # cue text computed from the real archived frames (radar_screen.cue_from)
+    "weather-rain-cue": (weather, _cue("Mostly cloudy", "cloud", _REAL_CUE, True)),
+    "weather-cue-thunderstorm": (weather, _cue("Thunderstorm", "rain", _REAL_CUE)),
+    "weather-cue-freezing": (weather, _cue("Freezing drizzle", "rain", _REAL_CUE)),
+    "weather-cue-hail": (weather, _cue("Storm, hail", "rain", _REAL_CUE)),
+    "weather-cue-here": (weather, _cue("Mostly cloudy", "cloud", "Raining here")),
+}
+
 
 def main():
     prefix = sys.argv[1] if len(sys.argv) > 1 else "r2"
@@ -653,6 +691,24 @@ def main():
     import map_screen   # v2 plane map (docs/08-plane-map.md); data built lazily
     scen = dict(SCENARIOS)
     scen.update({k: (fn, mk) for k, (fn, mk) in map_screen.SCENARIOS.items()})
+    scen.update(map_screen.SCENARIOS_V3)
+    import radar_screen  # v3 rain radar (docs/10-rain-radar.md)
+    scen.update(radar_screen.SCENARIOS)
+    scen.update(WEATHER_V3)
+    import today_screen  # 3.0 Today's Sky (docs/11-today.md)
+    import portal_screen  # 3.0 setup portal (docs/12-setup-portal.md)
+    scen.update(portal_screen.SCENARIOS)
+    scen.update(today_screen.SCENARIOS)
+    scen["today-busy-night"] = (radar_screen.night(today_screen.today), today_screen.BASE)
+    scen["weather-header-entry-night"] = (radar_screen.night(weather), SCENARIOS["weather"][1])
+    # chip-passed focus (docs/09 focus order): the chip tap renders like M7's after-pop focus
+    # while the plane is in traffic, and like the normal map once it has left
+    scen["map-from-passed"] = map_screen.SCENARIOS_V3["map-after-pop"] if "map-after-pop" in map_screen.SCENARIOS_V3         else map_screen.SCENARIOS["map-after-pop"]
+    _z1 = map_screen.SCENARIOS["map-z1"]
+    scen["map-from-passed-gone"] = (_z1[0], lambda: dict(_z1[1]() if callable(_z1[1]) else _z1[1],
+                                                         gone="BA A350-1000"))
+    scen["weather-rain-cue-zones"] = (today_screen.touch_overlay(weather), WEATHER_V3["weather-rain-cue"][1])
+    scen["weather-rain-cue-night"] = (radar_screen.night(weather), WEATHER_V3["weather-rain-cue"][1])
     for name, (fn, data) in scen.items():
         if flt and flt not in name:
             continue

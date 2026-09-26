@@ -18,5 +18,9 @@ struct TouchEvent {
 void touchInit();
 TouchEvent touchPoll(uint32_t nowMs);
 
+// The current press in screen coordinates (calibrated), false if not pressed. For the
+// setup portal's hold-to-cancel fill (docs/12), which needs the live state, not events.
+bool touchPoint(int16_t &x, int16_t &y);
+
 // Raw 12-bit reading for calibration. False if not pressed.
 bool touchRaw(int16_t &rx, int16_t &ry);

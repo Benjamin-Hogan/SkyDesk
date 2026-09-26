@@ -1,7 +1,15 @@
 #include "weather_client.h"
+#include "observer.h"
 #include "http_json.h"
 
+#include <WiFi.h>
+
 #include <math.h>
+
+namespace {
+char g_wxErr[40] = "";
+}
+const char *weatherLastError() { return g_wxErr; }
 
 bool weatherFetch(Weather &w) {
   char url[512];
@@ -13,20 +21,30 @@ bool weatherFetch(Weather &w) {
            "&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset"
            "&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto"
            "&timeformat=unixtime&forecast_days=2&forecast_hours=8",
-           (double)OBS_LAT, (double)OBS_LON);
+           (double)obs().lat, (double)obs().lon);
 
   JsonDocument filter;
   filter["current"] = true;
+  filter["elevation"] = true;
   filter["hourly"] = true;
   filter["daily"] = true;
 
   JsonDocument doc;
   bool jsonOk;
-  if (httpGetJson(url, doc, filter, jsonOk) != 200 || !jsonOk) return false;
+  const int code = httpGetJson(url, doc, filter, jsonOk);
+  if (code != 200 || !jsonOk) {
+    int c, tls;
+    httpLastFailure(c, tls);
+    if (code != 200) snprintf(g_wxErr, sizeof(g_wxErr), "wx http %d tls %d", code, tls);
+    else snprintf(g_wxErr, sizeof(g_wxErr), "wx json %s", httpLastJsonError());
+    Serial.printf("[wx] %s\n", g_wxErr);
+    return false;
+  }
 
   JsonObjectConst cur = doc["current"];
   if (cur.isNull() || cur["temperature_2m"].isNull()) {
     Serial.println("[wx] missing current block");
+    snprintf(g_wxErr, sizeof(g_wxErr), "wx no current block");
     return false;
   }
 
@@ -64,7 +82,9 @@ bool weatherFetch(Weather &w) {
   }
 
   n.valid = true;
+  g_wxErr[0] = 0;
   n.fetchedEpoch = time(nullptr);
+  n.elevM = doc["elevation"].is<float>() ? doc["elevation"].as<float>() : NAN;   // docs/12
   n.fetchedMs = millis();
   w = n;
   Serial.printf("[wx] %dF code=%d hi=%d lo=%d hours=%d\n", n.tempF, n.code, n.hiF, n.loF, n.nHourly);

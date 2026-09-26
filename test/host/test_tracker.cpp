@@ -12,6 +12,11 @@ void testParse();
 void testPlausible();
 void testLabels();
 void testMap();
+void testRadar();
+void testToday();
+void testSetup();
+void testTrails();
+void testTouchMap();
 #define CHECK(cond, msg)                                              \
   do {                                                                \
     if (!(cond)) { std::printf("  FAIL: %s (line %d)\n", msg, __LINE__); g_fail++; } \
@@ -179,6 +184,11 @@ int main() {
   testPlausible();
   testLabels();
   testMap();
+  testRadar();
+  testToday();
+  testSetup();
+  testTrails();
+  testTouchMap();
   std::printf(g_fail ? "\n%d FAILED\n" : "\nall passed\n", g_fail);
   return g_fail ? 1 : 0;
 }

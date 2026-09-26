@@ -25,6 +25,10 @@ When the plane leaves, it goes back to the weather.
    ```bash
    pio run -t upload
    ```
+   After the first USB flash, you can update over WiFi. Set `ENABLE_OTA 1`, an
+   `OTA_PASSWORD` and `OTA_ADDRESS` (the board's IP; reserve it in your router, since the
+   device has no mDNS) in `secrets.h`, then run `pio run -e ota -t upload`. The password is
+   read from `secrets.h`, so don't copy it into `platformio.ini`.
 4. Watch the log (optional):
    ```bash
    pio device monitor
@@ -33,7 +37,8 @@ When the plane leaves, it goes back to the weather.
 ## Using it
 | What you see | What it means |
 |---|---|
-| Weather screen, `4 nearby ›` chip | The radar is live. **Tap it to open the plane map** |
+| Weather screen, `4 nearby ›` chip | Live plane traffic. **Tap it to open the plane map** |
+| `Rain 10 mi W ›` under the clock | Rain is heading your way. **Tap the temperature area to open the rain radar** |
 | Plane card, big amber `NE` | Face north-east |
 | `42° up · about 4 fists` | Hold your fist at arm's length: one fist is about 10°. Stack four fists above the horizon |
 | `UP / overhead` | Look straight up |
@@ -62,13 +67,25 @@ every airborne plane at its real position with a short trail.
   plane is within 3 nm **and at least 25° above the horizon**. A low plane can be inside
   the disc without triggering, and when it's selected the strip shows its angle
   (`20° up`) so you can see why.
-- **Dim amber** planes will pop a card within about a minute. When one is selected, the strip
+- **Dim amber** planes will pop a card within about a minute. The soonest one is highlighted
+  automatically, with a dotted path line and a small square where its card will pop; the strip
   says `overhead in ~30 s`.
+- Planes too close together to tap one by one: **tap the same spot again** to step through them
+  (`2 of 5 here`). An amber arrow on the edge points at a highlighted plane that's off the map.
+- ▲/▼ after the altitude: climbing or descending.
 - The map background is generated once on your PC from OpenStreetMap
   (© OpenStreetMap contributors, ODbL). If you change `OBS_LAT/OBS_LON`, re-run:
   ```bash
   python tools/basemap/make_basemap.py
   ```
+
+### Rain radar
+Needs a **microSD card** in the CYD slot (any size; it uses under 1 MB). Tap the temperature
+area on the weather screen. It shows the last 50 minutes of NEXRAD rain around you (a 50 mi
+ring), with the frame time top-right and a line like `Rain 10 mi W · heavy 19 mi W`. It never
+says `No rain` while it's drawing echoes (`Small echoes only`), and it warns when data is
+old (`25 min old`), bad (`Bad radar data`) or incomplete (`partial coverage`).
+Radar data: Iowa Environmental Mesonet (keyless).
 
 ## Tuning
 All thresholds are in `include/config.h`:
@@ -103,3 +120,10 @@ From `docs/01-product-spec.md`, plus open items from the design review:
 - [ ] Map: no visible seams between the 5 horizontal bands, and no flicker at 3 s updates.
 - [ ] Map: after touch calibration, a tap within about a fingertip of a plane selects it.
 - [ ] Map: note how long `WIDENING...` shows after zooming out to 20 mi (should be ≤ 5 s).
+- [ ] v3 touch: after the bit-banged driver change, taps still land where you touch (no recalibration needed).
+- [ ] v3 SD: the radar screen does **not** say `Insert an SD card`; serial shows `[sd] ... self-test ok`.
+- [ ] v3 map: the inbound plane is highlighted with its path line before its card pops; tapping one spot in a busy stream steps `1 of N`, `2 of N`, ...
+- [ ] v3 map: with planes popping cards and no touch, the map still returns to weather ~5 min after the last touch.
+- [ ] v3 radar: on a rainy day the loop plays smoothly and the words/cue match the IEM website; serial `[radar] frame ... ok` times.
+- [ ] v3 radar: during the first radar open, the plane card still pops on time (`[radar] deferred N s` in the hourly log).
+- [ ] v3 radar: on an inversion night, note any false echoes (anomalous propagation is a known limit).

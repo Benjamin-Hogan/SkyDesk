@@ -30,14 +30,28 @@ Entry *findLocked(const char *hex) {
   return nullptr;
 }
 
-Entry *slotLocked(const char *hex) {
+// Protected: an entry whose plane is still inside LOOKUP_RADIUS_NM of the current traffic
+// is never evicted (3.0: with 8 slots and 9+ planes near PHX, plain LRU re-fetched the same
+// aircraft forever - one adsbdb lookup per aircraft is the rule, docs/04).
+bool protectedLocked(const Entry &e, const Traffic *t) {
+  if (!t) return false;
+  for (uint8_t i = 0; i < t->n; i++) {
+    const Aircraft &a = t->ac[i];
+    if (a.distNm > LOOKUP_RADIUS_NM) break;           // sorted by distance
+    if (strcmp(a.hex, e.info.hex) == 0) return true;
+  }
+  return false;
+}
+
+Entry *slotLocked(const char *hex, const Traffic *t = nullptr) {
   if (Entry *e = findLocked(hex)) return e;
-  Entry *victim = &g_cache[0];
+  Entry *victim = nullptr;
   for (auto &e : g_cache) {
     if (!e.used) return &e;
-    if (e.usedMs < victim->usedMs) victim = &e;   // least recently used
+    if (protectedLocked(e, t)) continue;
+    if (!victim || e.usedMs < victim->usedMs) victim = &e;   // least recently used
   }
-  return victim;
+  return victim;                                     // nullptr: every slot is in use nearby
 }
 
 void buildFilter(JsonDocument &f) {
@@ -57,6 +71,11 @@ void buildFilter(JsonDocument &f) {
 void routeInit() {
   g_mtx = xSemaphoreCreateMutex();
   memset(g_cache, 0, sizeof(g_cache));
+}
+
+bool routeHasRoom(const Aircraft &a, const Traffic &t) {
+  Lock l;
+  return slotLocked(a.hex, &t) != nullptr;
 }
 
 bool routeNeeded(const Aircraft &a) {
