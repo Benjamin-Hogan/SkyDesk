@@ -141,7 +141,6 @@ void testLabels() {
 
   Aircraft g{};
   strcpy(g.hex, "a3c1f2"); strcpy(g.callsign, "N172SP"); strcpy(g.type, "C172"); strcpy(g.reg, "N172SP");
-  strcpy(g.ownOp, "SMITH JOHN");
   planeLabels(g, nullptr, L);
   CHECK(!L.airline && strcmp(L.type, "Cessna 172") == 0, "GA: 'Cessna 172', no operator");
   CHECK(strcmp(L.line2a, "N172SP") == 0 && strcmp(L.line2b, "Private") == 0, "GA owner name never shown");

@@ -14,7 +14,6 @@ struct Aircraft {
   char reg[10];
   char type[5];            // ICAO designator, e.g. "B738"
   char desc[28];           // adsb.fi "desc" (uppercase)
-  char ownOp[28];          // adsb.fi "ownOp" (uppercase)
   char category[3];
   double lat, lon;
   int32_t altFt;           // MSL (geom if present, else baro)
@@ -75,6 +74,7 @@ struct Weather {
   HourSlot hourly[WX_HOURS];
   uint8_t nHourly;
   time_t sunrise[2], sunset[2];   // today, tomorrow
+  float elevM;                    // Open-Meteo's elevation of the point (NAN if absent)
   uint32_t version;
 };
 
@@ -89,6 +89,7 @@ struct NetStatus {
   bool timeSynced;
   bool weatherTried;
   bool trafficTried;
+  uint8_t lastReason;                 // last WiFi disconnect reason (boot words, docs/12)
   // diagnostics shown on screen while data is missing (there may be no serial link)
   int16_t lastHttp;                   // last failing HTTP status / HTTPClient error (0 = none)
   int32_t lastTls;                    // mbedTLS error of that failure (0 = none)
@@ -118,7 +119,7 @@ uint32_t appTrafficVersion();
 uint32_t appWeatherVersion();
 
 // UI -> net task hints
-enum class UiScreen : uint8_t { Boot, Weather, Plane, Setup, Map, Radar };
+enum class UiScreen : uint8_t { Boot, Weather, Plane, Setup, Map, Radar, Today };
 void appSetUiScreen(UiScreen s);
 UiScreen appGetUiScreen();
 

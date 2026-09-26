@@ -19,36 +19,37 @@ bool g_calWasDown = false;
 struct Btn { int16_t x, y, w, h; };
 bool hit(const Btn &b, int16_t x, int16_t y) { return x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h; }
 
-const Btn MENU_FACING{14, 52, 292, 40}, MENU_NIGHT{14, 100, 292, 40}, MENU_CAL{14, 148, 292, 40},
-          MENU_DONE{110, 202, 100, 30};
+// 4 rows x 36 px + a 36 px Done (docs/12, portal round 2; screens: portal_screen.settings_menu)
+const Btn MENU_FACING{14, 34, 292, 36}, MENU_NIGHT{14, 74, 292, 36}, MENU_PHONE{14, 114, 292, 36},
+          MENU_CAL{14, 154, 292, 36}, MENU_DONE{110, 198, 100, 36};
 const Btn FACE_MINUS{14, 104, 56, 48}, FACE_PLUS{250, 104, 56, 48}, FACE_DONE{110, 202, 100, 30};
 
 void doneButton(const Btn &b) {
-  tft->fillRoundRect(b.x, b.y, b.w, b.h, 15, COL_PLANE);
-  drawText(*tft, "Done", b.x + b.w / 2, b.y + 21, Font::Fsb9, COL_BG, C_BASELINE);
+  tft->fillRoundRect(b.x, b.y, b.w, b.h, b.h / 2, COL_PLANE);
+  drawText(*tft, "Done", b.x + b.w / 2, b.y + b.h / 2 + 6, Font::Fsb9, COL_BG, C_BASELINE);
 }
 
 void menuRow(const Btn &b, const char *label, const char *value) {
   TFT_eSPI &g = *tft;
   g.fillRoundRect(b.x, b.y, b.w, b.h, 8, COL_PANEL2);
-  drawText(g, label, b.x + 12, b.y + 26, Font::Fs9, COL_TEXT);
-  drawText(g, value, b.x + b.w - 24, b.y + 25, Font::F2, COL_MUTED, R_BASELINE);
+  drawText(g, label, b.x + 12, b.y + 24, Font::Fs9, COL_TEXT);
+  drawText(g, value, b.x + b.w - 24, b.y + 23, Font::F2, COL_MUTED, R_BASELINE);
   drawChevron(g, b.x + b.w - 16, b.y + b.h / 2, COL_MUTED);
 }
 
 void drawMenu() {
   TFT_eSPI &g = *tft;
   g.fillScreen(COL_BG);
-  drawText(g, "Settings", 160, 32, Font::Fsb12, COL_TEXT, C_BASELINE);
+  drawText(g, "Settings", 160, 24, Font::Fsb12, COL_TEXT, C_BASELINE);
   char buf[16];
   const Settings &s = settings();
   if (s.viewUpDeg == 0) snprintf(buf, sizeof(buf), "north-up");
   else snprintf(buf, sizeof(buf), "%d` %s", s.viewUpDeg, geo::compass16(s.viewUpDeg));   // ` = degree in Font 2
   menuRow(MENU_FACING, "Facing direction", buf);
   menuRow(MENU_NIGHT, "Dim at night", s.nightDim ? "On" : "Off");
+  menuRow(MENU_PHONE, "Phone setup", "WiFi, location");
   menuRow(MENU_CAL, "Calibrate touch", s.touchCal ? "done" : "not set");
-  doneButton(MENU_DONE);
-  drawText(g, "Hold 3 s here to calibrate", 160, 196, Font::Glcd, COL_DIM, C_BASELINE);
+  doneButton(MENU_DONE);   // (holding 3 s here still jumps to calibration)
 }
 
 void drawFacing() {
@@ -126,6 +127,7 @@ SetupResult setupTouch(int16_t x, int16_t y) {
     case Page::Menu:
       if (hit(MENU_FACING, x, y)) { g_page = Page::Facing; drawFacing(); }
       else if (hit(MENU_NIGHT, x, y)) { s.nightDim = !s.nightDim; settingsSave(); drawMenu(); }
+      else if (hit(MENU_PHONE, x, y)) return SetupResult::Portal;   // main reboots into the portal
       else if (hit(MENU_CAL, x, y)) setupStartCal();
       else if (hit(MENU_DONE, x, y)) return SetupResult::Done;
       break;

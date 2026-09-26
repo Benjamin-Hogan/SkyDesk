@@ -1,5 +1,7 @@
 // Sprite allocation, transitions, time formatting, and the boot screen.
 #include <esp_heap_caps.h>
+#include "setup_model.h"
+#include "observer.h"
 #include "ui_internal.h"
 #include "config.h"
 
@@ -106,15 +108,22 @@ void bootDraw(const NetStatus &n, bool full) {
 
   char buf[48];
   if (n.wifi == WifiPhase::Failed) {
-    snprintf(buf, sizeof(buf), "Can't join \"%s\"", n.ssid);
-    row(110, FAIL, buf, "");
+    // docs/12 (portal round 2): the countdown at the row's right, the reason's words alone
+    // on the next line, and the way out - Set up from phone.
     const int32_t left = (int32_t)(n.nextRetryMs - millis()) / 1000;
-    snprintf(buf, sizeof(buf), "Retrying in %d s  (attempt %d)", (int)max<int32_t>(left, 0), n.attempt);
-    drawText(g, buf, 64, 128, Font::F2, COL_MUTED);
+    char cd[16];
+    snprintf(cd, sizeof(cd), "retry %d s", (int)max<int32_t>(left, 0));
+    setFont(g, Font::F2);
+    const int16_t cdW = g.textWidth(cd);
+    snprintf(buf, sizeof(buf), "Can't join \"%s\"", n.ssid);
+    if (!setupIsPlainAscii(n.ssid) || 64 + g.textWidth(buf) + 8 > 280 - cdW) snprintf(buf, sizeof(buf), "Can't join your WiFi");
+    row(110, FAIL, buf, "");
+    drawText(g, cd, 280, 110, Font::F2, COL_DIM, R_BASELINE);
+    drawText(g, setupReasonWords(n.lastReason), 64, 128, Font::F2, COL_MUTED);
     row(150, TODO, "Clock", "");
     row(172, TODO, "Weather, traffic", "");
-    drawText(g, "Check WIFI_SSID / WIFI_PASSWORD in secrets.h", 160, 214, Font::F2, COL_MUTED, C_BASELINE);
-    drawText(g, "2.4 GHz networks only", 160, 232, Font::F2, COL_DIM, C_BASELINE);
+    g.fillRoundRect(50, 200, 220, 36, 18, COL_PLANE);
+    drawText(g, "Set up from phone", 160, 224, Font::Fsb9, COL_BG, C_BASELINE);
     return;
   }
   const bool up = n.wifi == WifiPhase::Connected;
@@ -129,6 +138,11 @@ void bootDraw(const NetStatus &n, bool full) {
   row(132, n.timeSynced ? OK : (up ? BUSY : TODO), "Clock", n.timeSynced ? buf : "");
   row(154, n.weatherTried ? OK : (up ? BUSY : TODO), "Weather", "");
   row(176, n.trafficTried ? OK : (up ? BUSY : TODO), "Traffic", "");
-  snprintf(buf, sizeof(buf), "%s  %.2f, %.2f", OBS_PLACE, (double)OBS_LAT, (double)OBS_LON);
+  if (obs().place[0]) snprintf(buf, sizeof(buf), "%s  %.2f, %.2f", obs().place, (double)obs().lat, (double)obs().lon);
+  else snprintf(buf, sizeof(buf), "%.2f, %.2f", (double)obs().lat, (double)obs().lon);
   drawText(g, buf, 160, 214, Font::F2, COL_MUTED, C_BASELINE);
+}
+
+bool bootTouchPortal(const NetStatus &n, int16_t x, int16_t y) {
+  return n.wifi == WifiPhase::Failed && x >= 50 && x < 270 && y >= 196 && y < 240;
 }

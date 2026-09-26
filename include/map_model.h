@@ -41,12 +41,14 @@ uint8_t mapWillPopSecs(const Aircraft &a);   // first passing time in seconds, o
 void mapAhead(const Aircraft &a, uint16_t secs, double &lat, double &lon);
 
 // Focus (docs/09 M1/M7): selected > held will-pop > soonest will-pop > just popped
-// (afterPopHex, 30 s) > -1 (the caller then uses the nearest plane on the map). A will-pop
+// (afterPopHex, 30 s) > chip-passed (chipPassedHex: the weather chip's passed plane, 3.0
+// docs/11) > -1 (the caller then uses the nearest plane on the map). A will-pop
 // focus is HELD until it stops being will-pop for 2 polls in a row or leaves the traffic
 // - it is not swapped poll-to-poll for a slightly sooner plane. newPoll=true once per snapshot.
 struct FocusHold { char hex[7]; uint8_t misses; };
 int mapPickFocus(const Traffic &t, const char *selectedHex, const char *afterPopHex, FocusHold &hold,
-                 bool newPoll);
+                 bool newPoll,
+                 const char *chipPassedHex = nullptr);
 
 // Map idle (docs/09 M1b, v3-R3-2): MAP_IDLE_S after timerStartMs (a touch OR a return
 // from a card) returns to weather, paused while a will-pop plane is the focus - but never

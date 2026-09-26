@@ -1,6 +1,8 @@
 // Weather screen - layout from screens.py -> weather(); rules in 06 §3.
 #include "aircraft_names.h"
+#include "chip.h"
 #include "geo.h"
+#include "today_store.h"
 #include "ui_internal.h"
 
 using namespace ui;
@@ -14,6 +16,14 @@ char     g_chip[64] = "";
 char     g_date[20] = "";
 char     g_cue[32] = "";              // the rain cue on screen ("" = none)
 uint32_t g_radarVer = UINT32_MAX;
+char     g_head[96] = "";             // header signature: redrawn only when its words change
+ChipMsg  g_chipMsg;                   // what the chip says now (the tap reads it)
+uint32_t g_chipPassEndEpoch = 0;
+
+int16_t f2w(const char *s) {
+  setFont(*tft, Font::F2);
+  return tft->textWidth(s);
+}
 
 bool isStale(const Weather &w) {
   if (!w.valid) return true;
@@ -21,27 +31,44 @@ bool isStale(const Weather &w) {
   return now > 1700000000 && now - w.fetchedEpoch > WEATHER_STALE_S;
 }
 
-void drawHeader(const Weather &w) {
+void drawHeader(const Weather &w, bool force = true) {
   TFT_eSPI &g = *tft;
-  g.fillRect(0, 0, SCREEN_W, 24, COL_BG);
   static const char *DAYS[] = {"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"};
   static const char *MONS[] = {"JAN", "FEB", "MAR", "APR", "MAY", "JUN",
                                "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"};
   struct tm lt;
-  if (localNow(lt)) {
-    snprintf(g_date, sizeof(g_date), "%s  %s %d", DAYS[lt.tm_wday], MONS[lt.tm_mon], lt.tm_mday);
-    drawText(g, g_date, 10, 17, Font::F2, COL_MUTED);
-  }
+  g_date[0] = '\0';
+  if (localNow(lt)) snprintf(g_date, sizeof(g_date), "%s  %s %d", DAYS[lt.tm_wday], MONS[lt.tm_mon], lt.tm_mday);
   // Status only when degraded - no permanent clutter (R1-15).
+  char status[32] = "";
   if (!w.valid) {
-    drawText(g, "Weather unavailable", 296, 17, Font::F2, COL_WARN, R_BASELINE);
-    g.fillCircle(305, 12, 3, COL_WARN);
+    snprintf(status, sizeof(status), "Weather unavailable");
   } else if (isStale(w)) {
-    char buf[32];
     const long mins = (time(nullptr) - w.fetchedEpoch) / 60;
-    if (mins < 120) snprintf(buf, sizeof(buf), "Updated %ld min ago", mins);
-    else snprintf(buf, sizeof(buf), "Updated %ld h ago", mins / 60);
-    drawText(g, buf, 296, 17, Font::F2, COL_WARN, R_BASELINE);
+    if (mins < 120) snprintf(status, sizeof(status), "Updated %ld min ago", mins);
+    else snprintf(status, sizeof(status), "Updated %ld h ago", mins / 60);
+  }
+  // The Today entry (docs/11): "· 31 overhead ›" after the date, clear of the status.
+  // Before the clock syncs its text is hidden; the header target stays live (main.cpp).
+  char entry[16] = "";
+  const int16_t dateEnd = 10 + (g_date[0] ? f2w(g_date) : 0);
+  const int16_t statusLeft = status[0] ? 296 - f2w(status) : SCREEN_W;
+  if (g_date[0] && todayClockValid()) {
+    headerEntryFit(todayOverhead(), dateEnd, statusLeft, f2w, entry);
+  }
+  char sig[96];
+  snprintf(sig, sizeof(sig), "%s|%s|%s", g_date, status, entry);
+  if (!force && strcmp(sig, g_head) == 0) return;
+  snprintf(g_head, sizeof(g_head), "%s", sig);
+  g.fillRect(0, 0, SCREEN_W, 24, COL_BG);
+  if (g_date[0]) drawText(g, g_date, 10, 17, Font::F2, COL_MUTED);
+  if (entry[0]) {
+    drawSep(g, dateEnd + 8, 12, COL_DIM);
+    const int16_t ew = drawText(g, entry, dateEnd + HEADER_SEP, 17, Font::F2, COL_MUTED);
+    drawChevron(g, dateEnd + HEADER_SEP + ew + 5, 12, COL_MUTED);
+  }
+  if (status[0]) {
+    drawText(g, status, 296, 17, Font::F2, COL_WARN, R_BASELINE);
     g.fillCircle(305, 12, 3, COL_WARN);
   }
 }
@@ -144,46 +171,52 @@ void drawBody(const Weather &w) {
   }
 }
 
-// Traffic chip: redrawn only when its text changes.
+// Traffic chip: chipMessage() (chip.cpp, host-tested) decides; redrawn only when its text
+// changes. Every state opens the map (docs/11, round 1 M1).
 void drawChip(const Traffic &t, bool trafficUp) {
-  char left[24], right[40];
-  bool offline = !trafficUp;
-  if (offline) {
-    const int32_t s = max<int32_t>(0, (int32_t)(t.nextRetryMs - millis()) / 1000);
-    snprintf(left, sizeof(left), "Traffic offline");   // "Radar" means rain radar (v3-R1-5)
-    snprintf(right, sizeof(right), "retrying in %d s", (int)s);
-  } else {
-    int n = 0;
-    const Aircraft *nearest = nullptr;
-    for (uint8_t i = 0; i < t.n; i++) {
-      if (t.ac[i].onGround) continue;
-      if (!nearest) nearest = &t.ac[i];
-      n++;
-    }
-    snprintf(left, sizeof(left), "%d nearby", n);
-    if (nearest) {
-      const char *mfr, *model;
-      const char *type = typeLookup(nearest->type, mfr, model) ? model
-                         : (nearest->type[0] ? nearest->type : "Aircraft");
-      snprintf(right, sizeof(right), "%s  %.1f mi %s", type, nearest->distNm * 1.15078f,
-               geo::compass8(nearest->azDeg));
-    } else {
-      snprintf(right, sizeof(right), "quiet skies");
-    }
+  ChipInputs in{};
+  in.trafficUp = trafficUp;
+  in.retryS = max<int32_t>(0, (int32_t)(t.nextRetryMs - millis()) / 1000);
+  const Aircraft *nearest = nullptr;
+  for (uint8_t i = 0; i < t.n; i++) {
+    if (t.ac[i].onGround) continue;
+    if (!nearest) nearest = &t.ac[i];
+    in.nNearby++;
   }
+  const char *mfr, *model;
+  if (nearest) {
+    in.nearestType = typeLookup(nearest->type, mfr, model) ? model : (nearest->type[0] ? nearest->type : "Aircraft");
+    in.nearestMi = nearest->distNm * 1.15078f;
+    in.nearestDir = geo::compass8(nearest->azDeg);
+  }
+  PassRec p;                                  // just the last pass, on the loop stack
+  const time_t nowE = time(nullptr);
+  if (todayClockValid() && todayLastPass(p) && p.closeEpoch && nowE >= (time_t)p.closeEpoch) {
+    in.hasPass = true;
+    in.passAgeS = (uint32_t)(nowE - p.closeEpoch);
+    in.passOp = p.lab.op;
+    in.passType = p.lab.type;
+    in.passIcao = p.lab.icao;
+    in.passCode = p.lab.code;
+    in.passHex = p.hex;
+    g_chipPassEndEpoch = p.closeEpoch + TODAY_PASSED_S;
+  }
+  chipMessage(in, f2w, g_chipMsg);
+  const ChipMsg &m = g_chipMsg;
+  const bool offline = m.kind == ChipKind::Offline;
   char sig[64];
-  snprintf(sig, sizeof(sig), "%s|%s", left, right);
+  snprintf(sig, sizeof(sig), "%s|%s", m.left, m.right);
   if (strcmp(sig, g_chip) == 0) return;
   strncpy(g_chip, sig, sizeof(g_chip));
 
   TFT_eSPI &g = *tft;
   g.fillRoundRect(6, 215, 308, 23, 11, COL_PANEL2);
   drawPlaneGlyph(g, 21, 226, 45, 0.55f, offline ? COL_DIM : COL_PLANE);
-  drawText(g, left, 36, 231, Font::F2, offline ? COL_WARN : COL_TEXT);
+  drawText(g, m.left, 36, 231, Font::F2, offline ? COL_WARN : COL_TEXT);
   if (offline) {
-    drawText(g, right, 304, 231, Font::F2, COL_MUTED, R_BASELINE);
+    drawText(g, m.right, 304, 231, Font::F2, COL_MUTED, R_BASELINE);
   } else {
-    drawText(g, right, 296, 231, Font::F2, COL_MUTED, R_BASELINE);
+    drawText(g, m.right, 296, 231, Font::F2, COL_MUTED, R_BASELINE);
     drawChevron(g, 302, 226, COL_MUTED);
   }
 }
@@ -195,6 +228,17 @@ void weatherEnter() {
   g_wxVer = UINT32_MAX;
   g_lastMinute = -1;
   g_chip[0] = '\0';
+  g_head[0] = '\0';
+}
+
+bool weatherChipPassed(char hexOut[7], char labelOut[48], uint32_t &untilMs) {
+  if (g_chipMsg.kind != ChipKind::Passed || !g_chipMsg.focusHex[0]) return false;
+  snprintf(hexOut, 7, "%s", g_chipMsg.focusHex);
+  snprintf(labelOut, 48, "%s", g_chipMsg.right);
+  const time_t nowE = time(nullptr);
+  const int32_t left = (int32_t)(g_chipPassEndEpoch - (uint32_t)nowE);
+  untilMs = millis() + (uint32_t)max<int32_t>(0, left) * 1000UL;
+  return true;
 }
 
 void weatherUpdate(const Weather &w, const Traffic &t, bool trafficUp, uint32_t now) {
@@ -229,4 +273,9 @@ void weatherUpdate(const Weather &w, const Traffic &t, bool trafficUp, uint32_t 
     }
   }
   drawChip(t, trafficUp);
+  static uint32_t todayVer = 0;               // the header's "31 overhead" follows the log
+  if (todayVersion() != todayVer) {
+    todayVer = todayVersion();
+    drawHeader(w, false);                     // redraws only if its words changed
+  }
 }

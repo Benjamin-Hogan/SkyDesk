@@ -4,6 +4,7 @@
 // 4-bit rain layer (streamed from SD, /radar/<valid>.bin) overwrites non-zero nibbles.
 // NO anti-aliased calls here.
 #include "basemap.h"
+#include "observer.h"
 #include "geo.h"
 #include "radar_client.h"
 #include "sd_store.h"
@@ -103,9 +104,9 @@ void placeLabels() {
   auto tryPlace = [&](uint8_t ti) {
     const MapLabel &m = RADAR_TOWNS[ti];
     float fx, fy;
-    const double coslat = cos(OBS_LAT * DEG_TO_RAD);
-    fx = RADAR_CX + (m.lon - OBS_LON) * 60 * coslat * RADAR_PPN;
-    fy = RADAR_CY - (m.lat - OBS_LAT) * 60 * RADAR_PPN;
+    const double coslat = cos(obsBuildLat() * DEG_TO_RAD);   // labels sit on the build basemap
+    fx = RADAR_CX + (m.lon - obsBuildLon()) * 60 * coslat * RADAR_PPN;
+    fy = RADAR_CY - (m.lat - obsBuildLat()) * 60 * RADAR_PPN;
     const int16_t x = lroundf(fx), y = lroundf(fy), w = band->textWidth(m.name);
     const struct { int16_t lx, ly; uint8_t d; } opts[4] = {
         {x, (int16_t)(y - 3), C_BASELINE}, {(int16_t)(x + 4), (int16_t)(y + 4), L_BASELINE},
@@ -127,7 +128,7 @@ void placeLabels() {
       const MapLabel &m = RADAR_TOWNS[i];
       if (strcmp(m.name, "Gilbert") == 0) continue;               // your own town is the dot
       double d, az;
-      geo::distBearing({OBS_LAT, OBS_LON}, {m.lat, m.lon}, d, az);
+      geo::distBearing({obs().lat, obs().lon}, {m.lat, m.lon}, d, az);
       if (d / geo::M_PER_NM * 1.15078 < 15 || (int)(fmod(az + 22.5, 360) / 45) != oct) continue;
       if (tryPlace(i)) { done[i] = true; break; }
     }
@@ -328,7 +329,35 @@ void drawStrip(TFT_eSprite &s, int16_t y0) {
 
 }  // namespace
 
+namespace {
+// Off the radar gate (docs/12): the radar basemap + clutter mask are for the build location.
+void drawOffGate() {
+  TFT_eSPI &g = *tft;
+  g.fillScreen(COL_BG);
+  g.fillRoundRect(4, 4, 36, 24, 12, COL_PANEL2);
+  g.fillTriangle(24, 9, 24, 12, 17, 16, COL_TEXT);
+  g.fillTriangle(24, 12, 20, 16, 17, 16, COL_TEXT);
+  g.fillTriangle(24, 23, 24, 20, 17, 16, COL_TEXT);
+  g.fillTriangle(24, 20, 20, 16, 17, 16, COL_TEXT);
+  drawText(g, "Radar", 48, 23, Font::Fsb12, COL_TEXT);
+  drawText(g, "The radar map is built for", 160, 84, Font::F2, COL_MUTED, C_BASELINE);
+  drawText(g, OBS_PLACE, 160, 110, Font::Fsb12, COL_TEXT, C_BASELINE);
+  char buf[48];
+  const double mi = obsMilesFromBuild();
+  if (mi >= 1000) snprintf(buf, sizeof(buf), "Your location is %d,%03d mi away.", (int)mi / 1000, (int)mi % 1000);
+  else snprintf(buf, sizeof(buf), "Your location is %.*f mi away.", mi < 10 ? 1 : 0, mi);
+  drawText(g, buf, 160, 138, Font::F2, COL_MUTED, C_BASELINE);
+  drawText(g, "Weather and planes use your location.", 160, 162, Font::F2, COL_TEXT, C_BASELINE);
+  drawText(g, "Rebuild the firmware for your area", 160, 192, Font::F2, COL_DIM, C_BASELINE);
+  drawText(g, "to see rain here.", 160, 210, Font::F2, COL_DIM, C_BASELINE);
+}
+}  // namespace
+
 void radarEnter() {
+  if (!obsInRadarGate()) {
+    drawOffGate();
+    return;
+  }
   g_mounted = sdAcquire();
   g_drawn = false;
   g_stVer = UINT32_MAX;
@@ -338,6 +367,7 @@ void radarEnter() {
 }
 
 void radarUpdate(uint32_t now) {
+  if (!obsInRadarGate()) return;                         // the off-gate message stays up
   if (appRadarVersion() != g_stVer) {
     const uint8_t oldN = g_st.n;
     if (takeSnapshot() && g_st.n != oldN) g_fi = g_st.n ? g_st.n - 1 : 0;   // a new frame: newest first
@@ -399,7 +429,7 @@ bool radarTouchBack(int16_t x, int16_t y) { return x < 48 && y < 36; }
 bool radarCue(char *out, size_t n) {
   RadarStatus r;
   appGetRadar(r);
-  if (!r.sdOk || !r.n || !r.rain) return false;
+  if (!obsInRadarGate() || !r.sdOk || !r.n || !r.rain) return false;   // docs/12: off the radar gate
   const uint32_t now = (uint32_t)time(nullptr);
   if (now < 1700000000u || (int32_t)(now - r.valid[r.n - 1]) > (int32_t)(RADAR_CUE_MAX_AGE_MIN * 60)) return false;
   if (r.rainMi < RADAR_CUE_MIN_MI) snprintf(out, n, "Raining here");

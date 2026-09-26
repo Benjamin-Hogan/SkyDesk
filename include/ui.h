@@ -59,9 +59,17 @@ void uiInit(TFT_eSPI &tft);          // allocates sprites - call before WiFi
 void uiWipe(bool down);              // 8-band transition
 
 void bootDraw(const NetStatus &n, bool full);
+bool bootTouchPortal(const NetStatus &n, int16_t x, int16_t y);   // the "Set up from phone" button (docs/12)
 
 void weatherEnter();
 void weatherUpdate(const Weather &w, const Traffic &t, bool trafficUp, uint32_t now);
+// The chip is in its "Passed N min ago" state: the plane, its words, and when that ends.
+bool weatherChipPassed(char hexOut[7], char labelOut[48], uint32_t &untilMs);
+
+// Today page (3.0, docs/11-today.md)
+void todayEnter();
+void todayScreenUpdate(bool trafficUp, uint32_t now);
+bool todayTouchBack(int16_t x, int16_t y);
 
 void planeEnter();
 void planeUpdate(const TrackView &v, const Traffic &t, uint32_t now, bool arrival);
@@ -72,6 +80,9 @@ void mapEnter();
 void mapLeave();
 void mapUpdate(const Traffic &t, bool trafficUp, uint32_t now);
 MapAction mapTouch(const Traffic &t, int16_t x, int16_t y, char *hexOut);   // hexOut: 7 bytes
+// 3.0 (docs/11): the weather chip in its passed state opens the map on that plane until
+// `untilMs` (chip-passed focus), or says "<label>  out of range" for 4 s if it has left.
+void mapOpenPassed(const char *hex, const char *label, uint32_t untilMs);
 void mapCardClosed(const char *hex);   // back from an overhead card: that plane stays focused 30 s (M7)
 bool mapFocusWillPop();                // the idle pause (09 M1b)
 
@@ -82,7 +93,7 @@ void radarLeave();                     // releases the SD mount
 bool radarTouchBack(int16_t x, int16_t y);
 bool radarCue(char *out, size_t n);    // the weather screen's rain cue, same words as the strip
 
-enum class SetupResult : uint8_t { None, Done };
+enum class SetupResult : uint8_t { None, Done, Portal };
 void setupEnter();
 SetupResult setupTouch(int16_t x, int16_t y);
 void setupTick(uint32_t now);

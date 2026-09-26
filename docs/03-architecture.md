@@ -80,7 +80,7 @@ SkyDesk/
 ```cpp
 struct Aircraft {            // one row from the ADS-B feed, enriched
   char hex[7]; char callsign[9]; char reg[9]; char type[5];
-  char desc[24]; char ownOp[24];
+  char desc[24];   // (3.0: ownOp dropped - RAM, and it names private owners)
   float lat, lon; int32_t altFt; bool onGround;
   float gsKt, track; int16_t vRateFpm; char category[3];
   float seenPos;
@@ -169,6 +169,7 @@ v2/v3 add two screens the user opens, both returning to weather after 120 s idle
 | Sprites (dome 16-bit + 4 text 4-bit + 320×48 map/radar band, persistent) | ~63 |
 | Radar: convert buffers, transient (after TLS closes; blob table borrows the ADS-B buffer) | ~5 |
 | SD via SdFat (mounted once at boot) | ~1.5 |
+| Today's Sky (3.0, static; net +2.1 after `ROUTE_CACHE_N` 16 → 8, docs/11) | ~3.8 |
 | **Must remain free (8-bit RAM, `heap_caps_*(MALLOC_CAP_8BIT)`, NOT `ESP.getFreeHeap()`)** | **≥ 60** |
 
 `ESP.getFreeHeap()` includes the ~40 KB EXEC-only IRAM heap that TLS can't use; it overstated

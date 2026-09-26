@@ -17,7 +17,19 @@ class StreamSource : public ByteSource {
   int read() override { return waitData() ? s_.read() : -1; }
   size_t readBytes(char *buf, size_t n) override {
     size_t got = 0;
-    while (got < n && waitData()) got += s_.readBytes(buf + got, n - got);
+    uint32_t last = millis();
+    while (got < n && waitData()) {
+      const size_t r = s_.readBytes(buf + got, n - got);
+      if (r) {
+        got += r;
+        last = millis();
+        continue;
+      }
+      // available() > 0 but nothing read (a TLS error): don't spin core 0 into the
+      // task watchdog - yield, and give up after the HTTP timeout.
+      if (millis() - last > HTTP_TIMEOUT_MS) break;
+      delay(2);
+    }
     return got;
   }
 
@@ -106,13 +118,13 @@ int httpGetJson(const char *url, JsonDocument &doc, const JsonDocument &filter, 
 }
 
 int httpGetBody(const char *url, bool (*sink)(const uint8_t *buf, size_t n, void *ctx), void *ctx,
-                size_t maxBytes, size_t &got, size_t &expected) {
+                size_t maxBytes, size_t &got, size_t &expected, uint32_t timeoutMs) {
   got = expected = 0;
   WiFiClientSecure tls;
   tls.setInsecure();   // public read-only data, no secrets sent (docs/04)
   HTTPClient http;
   http.setConnectTimeout(HTTP_TIMEOUT_MS);
-  http.setTimeout(HTTP_TIMEOUT_MS);
+  http.setTimeout(timeoutMs);
   http.useHTTP10(true);
   http.setReuse(false);
   if (!http.begin(tls, url)) { noteFailure(-1000, tls); return -1; }
@@ -137,22 +149,42 @@ int httpGetBody(const char *url, bool (*sink)(const uint8_t *buf, size_t n, void
   expected = len > 0 ? (size_t)len : 0;
   const size_t limit = len > 0 ? (size_t)len : maxBytes;
   WiFiClient *s = http.getStreamPtr();
-  uint8_t buf[512];           // on the net task's stack: no permanent RAM
+  // 2 KB, handed to the sink only when FULL (or at the end): the SD card gets whole,
+  // sector-aligned multi-sector writes, so it drains faster than WiFi fills lwIP's buffers.
+  // With 512 B single-sector writes (SHARED_SPI) the TCP backlog ate the heap (3.0 field
+  // log: heap min 2.1 KB, every other request timing out).
+  uint8_t buf[2048];          // on the net task's stack (16 KB): no permanent RAM
+  size_t fill = 0;
+  bool sinkOk = true;
   uint32_t lastData = millis();
-  while (got < limit) {
+  while (got + fill < limit) {
     const int avail = s->available();
     if (avail <= 0) {
       if (!s->connected()) break;                    // the server closed: end of the body
-      if (millis() - lastData > HTTP_TIMEOUT_MS) break;
+      if (millis() - lastData > timeoutMs) break;
       delay(2);
       continue;
     }
-    const size_t want = min<size_t>(min<size_t>((size_t)avail, sizeof(buf)), limit - got);
-    const int n = s->readBytes(buf, want);
-    if (n <= 0) continue;
+    const size_t want = min<size_t>(min<size_t>((size_t)avail, sizeof(buf) - fill), limit - got - fill);
+    const int n = s->readBytes(buf + fill, want);
+    if (n <= 0) {
+      // A TLS read error (e.g. -76 NET_RECV_FAILED) can leave available() > 0 while every
+      // read returns 0: without this the loop spun on core 0 until the task watchdog reset
+      // the board (3.0 field log). Yield, and give up on the same timeout as a stall.
+      if (!s->connected() || millis() - lastData > timeoutMs) break;
+      delay(2);
+      continue;
+    }
     lastData = millis();
-    if (!sink(buf, (size_t)n, ctx)) break;
-    got += (size_t)n;
+    fill += (size_t)n;
+    if (fill == sizeof(buf)) {
+      if (!(sinkOk = sink(buf, fill, ctx))) break;
+      got += fill;
+      fill = 0;
+    }
+  }
+  if (sinkOk && fill) {
+    if (sink(buf, fill, ctx)) got += fill;
   }
   http.end();
   return code;

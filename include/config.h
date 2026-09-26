@@ -14,7 +14,7 @@
 #include "secrets.h"
 #endif
 
-#define FW_VERSION        "2.0.0"
+#define FW_VERSION        "3.0.0-dev"
 #define USER_AGENT        "SkyDesk/" FW_VERSION " (ESP32 CYD)"
 
 // --------------------------------------------------------------------------
@@ -71,7 +71,7 @@
 #define WEATHER_POLL_MS       600000UL   // 10 min
 #define WEATHER_RETRY_MS      60000UL
 #define WEATHER_STALE_S       1800       // header warns after 30 min
-#define ROUTE_CACHE_N         16
+#define ROUTE_CACHE_N         8     // 3.0: was 16; pays for Today's Sky (docs/11 -> RAM)
 #define ROUTE_TTL_MS          (6UL * 3600UL * 1000UL)
 #define HTTP_TIMEOUT_MS       7000
 #define WIFI_RETRY_MS         12000
@@ -92,6 +92,25 @@
 #define MAP_CYCLE_MS        3000   // a repeat tap within this time (and 28 px) cycles
 #define MAP_AFTER_POP_S     30     // the popped plane stays focused this long
 #define MAP_LEADER_S        60     // focus leader length in seconds of flight
+// Today's Sky (docs/11-today.md)
+#define TODAY_MERGE_S       600    // the same hex back within this is the same pass
+#define TODAY_PASSED_S      600    // the chip says "Passed N min ago" this long
+#define TODAY_PROMISE_TOL_S 15     // a Heads-up promise is kept within max(this, 30 % of lead)
+#define TODAY_RARE_MAX_DAYS 3      // a type seen on this many earlier days is never "rarest"
+#define TODAY_LEARN_DAYS    3      // rarest says "learning" until this many days are logged
+#define TODAY_GATE_MIN_N    30     // Heads-up gate: at least this many promises in 7 days ...
+#define TODAY_GATE_PCT      80     // ... and at least this share kept
+#define TODAY_IDLE_S        120    // Today page: no touch -> weather
+#define TODAY_OUTAGE_MIN    5      // an hour with more traffic outage than this is dotted
+// Setup portal (docs/12-setup-portal.md)
+#define SETUP_GATE_MI       0.1    // a saved location this close to the build centre keeps the street maps
+#define SETUP_RADAR_GATE_MI 1.0    // ... and this close keeps the radar (a radar pixel is ~0.5 mi)
+#define SETUP_AUTO_S        180    // network visible but joining fails this long -> the portal opens
+#define SETUP_IDLE_S        900    // the portal with no phone joined this long -> reboot to normal
+#define SETUP_AUTO_IDLE_S   300    // ... after an AUTOMATIC entry (the router may just be refusing briefly)
+#define SETUP_SESSION_S     1800   // a joined session with no request this long ends (abandoned)
+#define SETUP_AUTO_CAP_S    600    // an AUTOMATIC portal lasts at most this unless the page is open
+#define SETUP_HOLD_MS       1000   // Cancel fires on a hold this long (R2-9)
 
 // Rain radar (docs/10-rain-radar.md)
 #define RADAR_DBZ_LIGHT     20     // level thresholds (n0q dBZ); below LIGHT = dropped

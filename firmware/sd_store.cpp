@@ -21,7 +21,15 @@ SemaphoreHandle_t g_lock = nullptr;
 char g_why[32] = "not probed";
 
 bool probe(uint32_t hz) {
-  if (!g_sd.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, hz, &g_sdSpi))) {
+  // SHARED_SPI, not DEDICATED_SPI: dedicated mode leaves the SPI transaction (and the
+  // core's per-bus mutex) OPEN after a read, owned by the task that read. The next access
+  // from the other core's task then releases a mutex it doesn't hold -> FreeRTOS assert
+  // (xQueueGenericSend), a boot loop in 3.0. Shared mode ends every transaction.
+  // USER_SPI_BEGIN: we start the bus with OUR pins on every attempt. After a failed
+  // self-test g_sd.end() stops the bus, and SdFat's own begin() would restart HSPI on its
+  // default pins 14/12/13/15 - the TFT's (review).
+  g_sdSpi.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
+  if (!g_sd.begin(SdSpiConfig(SD_CS, SHARED_SPI | USER_SPI_BEGIN, hz, &g_sdSpi))) {
     snprintf(g_why, sizeof(g_why), "no card or not FAT32");
     return false;
   }
@@ -53,7 +61,6 @@ bool probe(uint32_t hz) {
 
 bool sdInit() {
   g_lock = xSemaphoreCreateMutex();
-  g_sdSpi.begin(SD_SCLK, SD_MISO, SD_MOSI, SD_CS);
   for (uint32_t hz : {(uint32_t)SD_FREQ_HZ, 4000000u, 1000000u}) {
     if (probe(hz)) {
       g_ok = true;
@@ -73,5 +80,7 @@ bool sdLock(uint32_t waitMs) {
   return g_lock && xSemaphoreTake(g_lock, waitMs == UINT32_MAX ? portMAX_DELAY : pdMS_TO_TICKS(waitMs)) == pdTRUE;
 }
 void sdUnlock() {
+  // Belt and braces: never leave the card mid-read/write when another task may be next.
+  if (g_ok) g_sd.card()->syncDevice();
   if (g_lock) xSemaphoreGive(g_lock);
 }

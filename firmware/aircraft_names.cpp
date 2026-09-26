@@ -60,8 +60,9 @@ const TypeRow TYPES[] = {
   {"H500", "MD", "500"}, {"EC20", "Airbus", "H120"}, {"B505", "Bell", "505"}, {"C82R", "Cessna", "182RG"},
 };
 
-// ICAO airline prefix -> short name, used when neither adsbdb nor ownOp names
-// the operator (adsb.lol has no ownOp; adsbdb is only queried within 6 nm).
+// ICAO airline prefix -> short name, used when adsbdb doesn't name the operator
+// (adsbdb is only queried within 6 nm). adsb.fi's ownOp is not kept (3.0: RAM, and it
+// names private owners).
 struct AirlineRow { const char *icao, *name; };
 const AirlineRow AIRLINES[] = {
   {"SWA", "Southwest"}, {"AAL", "American"}, {"UAL", "United"}, {"DAL", "Delta"},
@@ -84,6 +85,21 @@ void copyStr(char *dst, size_t n, const char *src) {
 bool looksLikeAirlineCallsign(const char *cs) {
   return strlen(cs) >= 4 && isalpha(cs[0]) && isalpha(cs[1]) && isalpha(cs[2]) && isdigit(cs[3]);
 }
+
+}  // namespace
+
+bool airlineByCallsign(const char *cs, char *out, size_t n) {
+  out[0] = '\0';
+  if (!cs || !looksLikeAirlineCallsign(cs)) return false;
+  for (const auto &al : AIRLINES)
+    if (strncmp(cs, al.icao, 3) == 0) {
+      copyStr(out, n, al.name);
+      return true;
+    }
+  return false;
+}
+
+namespace {
 
 // "WN1637" -> "WN 1637"
 void spaceFlight(const char *in, char *out, size_t n) {
@@ -152,8 +168,6 @@ void planeLabels(const Aircraft &a, const RouteInfo *r, PlaneLabels &o) {
     shortOperator(r->airline, o.op, sizeof(o.op));
   } else if (airlineCs && r && r->owner[0]) {
     shortOperator(r->owner, o.op, sizeof(o.op));
-  } else if (airlineCs && a.ownOp[0]) {
-    shortOperator(a.ownOp, o.op, sizeof(o.op));
   } else if (airlineCs) {
     for (const auto &al : AIRLINES)
       if (strncmp(a.callsign, al.icao, 3) == 0) { copyStr(o.op, sizeof(o.op), al.name); break; }

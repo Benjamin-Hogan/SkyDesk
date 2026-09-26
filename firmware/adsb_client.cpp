@@ -1,4 +1,5 @@
 #include "adsb_client.h"
+#include "observer.h"
 #include "adsb_parse.h"
 #include "http_json.h"
 
@@ -19,7 +20,7 @@ bool fetchFrom(uint8_t provider, Traffic &t) {
   uint16_t unusedInterval;
   appGetPollPlan(radius, unusedInterval);   // the map widens it (docs/08)
   snprintf(url, sizeof(url), provider == 0 ? ADSB_PRIMARY_URL : ADSB_FALLBACK_URL,
-           (double)OBS_LAT, (double)OBS_LON, (int)radius);
+           (double)obs().lat, (double)obs().lon, (int)radius);
 
   struct Ctx { int n; } ctx{0};
   bool parsed;

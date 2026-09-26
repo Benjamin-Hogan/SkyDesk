@@ -1,5 +1,6 @@
 // Plane screen - layout from screens.py -> plane(); rules in 06 §4.
 #include "aircraft_names.h"
+#include "observer.h"
 #include "geo.h"
 #include "settings.h"
 #include "ui_internal.h"
@@ -29,8 +30,8 @@ struct Sky { float az, el; };
 
 Sky skyOf(double lat, double lon, double altFt) {
   double d, az;
-  geo::distBearing({OBS_LAT, OBS_LON}, {lat, lon}, d, az);
-  return {(float)az, (float)geo::elevation(d, altFt, OBS_ELEV_FT)};
+  geo::distBearing({obs().lat, obs().lon}, {lat, lon}, d, az);
+  return {(float)az, (float)geo::elevation(d, altFt, obs().elevFt)};
 }
 
 // Equidistant projection, sprite coords. clamp keeps the glyph 19 px inside the rim.

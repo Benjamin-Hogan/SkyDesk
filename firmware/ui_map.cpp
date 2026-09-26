@@ -7,6 +7,7 @@
 #include "route_client.h"
 #include "settings.h"
 #include "tracker.h"
+#include "observer.h"
 #include "ui_internal.h"
 
 #include <math.h>
@@ -63,6 +64,10 @@ uint8_t   g_wantNm = POLL_RADIUS_NM;
 char      g_selected[7] = "";
 char      g_afterPop[7] = "";         // M7: the plane whose card just closed
 uint32_t  g_afterPopMs = 0;
+char      g_chipPassed[7] = "";       // 3.0 chip-passed focus (docs/11): opened from the weather chip
+uint32_t  g_chipPassedEndMs = 0;
+char      g_goneLabel[28] = "";       // it had already left: "<label>  out of range" for 4 s
+uint32_t  g_goneMs = 0;
 FocusHold g_hold{};
 TapCycle  g_cycle{};
 uint8_t   g_cycK = 0, g_cycN = 0;
@@ -96,6 +101,12 @@ const char *callsignOf(const Aircraft &a) { return a.callsign[0] ? a.callsign : 
 bool afterPopActive(uint32_t now) {
   return g_afterPop[0] && (int32_t)(now - g_afterPopMs) < (int32_t)(MAP_AFTER_POP_S * 1000UL);
 }
+
+bool chipPassedActive(uint32_t now) {
+  return g_chipPassed[0] && (int32_t)(now - g_chipPassedEndMs) < 0;
+}
+
+bool goneActive(uint32_t now) { return g_goneMs && (int32_t)(now - g_goneMs) < 4000; }
 
 // ONE width for tag placement and its backing (callsign, or altitude + the M5 tick).
 int16_t tagWidth(const Aircraft &a) {
@@ -148,7 +159,18 @@ void layout(const Traffic &t, uint32_t now) {
   {   // focus (09 M1/M7): selected > will-pop (held) > just popped > nearest on the map
     const bool newPoll = t.version != g_layoutVer;
     g_layoutVer = t.version;
-    if (live) g_focusAc = mapPickFocus(t, g_selected, afterPopActive(now) ? g_afterPop : "", g_hold, newPoll);
+    if (live) {
+      if (g_chipPassed[0] && newPoll) {              // opened on a plane that has left: say so once
+        bool present = false;
+        for (uint8_t i = 0; i < t.n; i++) present |= strcmp(t.ac[i].hex, g_chipPassed) == 0;
+        if (!present) {
+          if (g_goneLabel[0] && !g_goneMs) g_goneMs = now ? now : 1;
+          g_chipPassed[0] = '\0';
+        }
+      }
+      g_focusAc = mapPickFocus(t, g_selected, afterPopActive(now) ? g_afterPop : "", g_hold, newPoll,
+                               chipPassedActive(now) ? g_chipPassed : "");
+    }
     else
       for (uint8_t i = 0; i < t.n && g_focusAc < 0; i++)
         if (g_selected[0] && strcmp(t.ac[i].hex, g_selected) == 0) g_focusAc = i;
@@ -161,7 +183,8 @@ void layout(const Traffic &t, uint32_t now) {
       for (uint8_t p = 0; p < g_nPlanes; p++)
         if (g_planes[p].idx == g_focusAc && onMap(g_fx, g_fy)) g_focus = p;
       mapWillPop(f, g_pop);
-      g_focusPassed = !g_pop.secs && afterPopActive(now) && strcmp(f.hex, g_afterPop) == 0;
+      g_focusPassed = !g_pop.secs && ((afterPopActive(now) && strcmp(f.hex, g_afterPop) == 0) ||
+                                      (chipPassedActive(now) && strcmp(f.hex, g_chipPassed) == 0));
     }
   }
 
@@ -245,7 +268,7 @@ void layout(const Traffic &t, uint32_t now) {
 
   {   // airports before tags
     setFont(*band, Font::Glcd);
-    for (uint8_t i = 0; i < MAP_AIRPORT_N && g_nLabels < 48; i++) {
+    for (uint8_t i = 0; obsInGate() && i < MAP_AIRPORT_N && g_nLabels < 48; i++) {   // docs/12 gate
       float x, y;
       mapProject(MAP_AIRPORTS[i].lat, MAP_AIRPORTS[i].lon, k, x, y);
       const int16_t w = band->textWidth(MAP_AIRPORTS[i].name);
@@ -303,7 +326,7 @@ void layout(const Traffic &t, uint32_t now) {
 labels:
   // towns only where free; your own town is skipped
   setFont(*band, Font::F2);
-  for (uint8_t i = 0; i < MAP_TOWN_N && g_nLabels < 48; i++) {
+  for (uint8_t i = 0; obsInGate() && i < MAP_TOWN_N && g_nLabels < 48; i++) {
     const MapLabel &m = MAP_TOWNS[i];
     if (!m.major && zoom() == 2) continue;
     float x, y;
@@ -362,7 +385,10 @@ void drawBand(TFT_eSprite &s, int16_t y0, const Traffic &t) {
   const int16_t cy = MAP_CY - y0;   // everything is drawn shifted by -y0; the sprite clips
   const bool live = g_state == MapState::Live || g_state == MapState::Loading;
 
-  memcpy(s.getPointer(), MAP_ZOOMS[zoom()].img + (size_t)y0 * (MAP_W / 2), BAND_H * (MAP_W / 2));
+  if (obsInGate())
+    memcpy(s.getPointer(), MAP_ZOOMS[zoom()].img + (size_t)y0 * (MAP_W / 2), BAND_H * (MAP_W / 2));
+  else                                                    // off the gate: no streets (docs/12)
+    memset(s.getPointer(), 0, BAND_H * (MAP_W / 2));      // index 0 = M_BG in both nibbles
   tintZone((uint8_t *)s.getPointer(), y0, ENTER_RADIUS_NM * k);
 
   s.drawCircle(MAP_CX, cy, lroundf(ENTER_RADIUS_NM * k), M_PLANE_DIM);
@@ -478,7 +504,13 @@ void drawBand(TFT_eSprite &s, int16_t y0, const Traffic &t) {
   drawText(s, lab, 316 - zw / 2, 21 - y0, Font::F2, M_TEXT, C_BASELINE);
   s.fillTriangle(160, 3 - y0, 155, 12 - y0, 165, 12 - y0, M_MUTED);
   drawText(s, "N", 160, 24 - y0, Font::Glcd, M_MUTED, C_BASELINE);
-  drawText(s, "(c) OSM", 4, STRIP_Y - 4 - y0, Font::Glcd, M_DIM);
+  if (obsInGate()) {
+    drawText(s, "(c) OSM", 4, STRIP_Y - 4 - y0, Font::Glcd, M_DIM);
+  } else {
+    char note[48];
+    snprintf(note, sizeof(note), "No streets here - built for %s", OBS_PLACE);
+    drawText(s, note, 4, STRIP_Y - 4 - y0, Font::Glcd, M_DIM);
+  }
 }
 
 int16_t f2Width(const char *s) {
@@ -506,6 +538,11 @@ void drawStrip(TFT_eSprite &s, int16_t y0, const Traffic &t, uint32_t now) {
     case MapState::Loading:   // the strip keeps describing the focus plane
     case MapState::Live:
       break;
+  }
+  if (goneActive(now)) {      // 3.0: the chip's passed plane has left the traffic (round 3 S1)
+    drawText(s, g_goneLabel, 10, base, Font::F2, M_MUTED);
+    drawText(s, "out of range", 310, base, Font::F2, M_MUTED, R_BASELINE);
+    return;
   }
   if (g_focusAc < 0) {
     snprintf(buf, sizeof(buf), "Nothing within %d mi", ZOOM_MI[zoom()]);
@@ -590,10 +627,21 @@ void mapLeave() {
   appSetPollPlan(POLL_RADIUS_NM, ADSB_POLL_WEATHER_MS);
   g_selected[0] = '\0';
   g_afterPop[0] = '\0';
+  g_chipPassed[0] = '\0';
+  g_goneLabel[0] = '\0';
+  g_goneMs = 0;
   g_hold = FocusHold{};
   g_cycle = TapCycle{};
   g_cycN = 0;
   appSetPinnedHex("");
+}
+
+void mapOpenPassed(const char *hex, const char *label, uint32_t untilMs) {
+  snprintf(g_chipPassed, sizeof(g_chipPassed), "%s", hex ? hex : "");
+  snprintf(g_goneLabel, sizeof(g_goneLabel), "%s", label ? label : "");
+  g_chipPassedEndMs = untilMs;
+  g_goneMs = 0;
+  g_dirty = true;
 }
 
 void mapCardClosed(const char *hex) {

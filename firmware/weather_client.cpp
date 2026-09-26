@@ -1,4 +1,5 @@
 #include "weather_client.h"
+#include "observer.h"
 #include "http_json.h"
 
 #include <WiFi.h>
@@ -20,10 +21,11 @@ bool weatherFetch(Weather &w) {
            "&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset"
            "&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=auto"
            "&timeformat=unixtime&forecast_days=2&forecast_hours=8",
-           (double)OBS_LAT, (double)OBS_LON);
+           (double)obs().lat, (double)obs().lon);
 
   JsonDocument filter;
   filter["current"] = true;
+  filter["elevation"] = true;
   filter["hourly"] = true;
   filter["daily"] = true;
 
@@ -82,6 +84,7 @@ bool weatherFetch(Weather &w) {
   n.valid = true;
   g_wxErr[0] = 0;
   n.fetchedEpoch = time(nullptr);
+  n.elevM = doc["elevation"].is<float>() ? doc["elevation"].as<float>() : NAN;   // docs/12
   n.fetchedMs = millis();
   w = n;
   Serial.printf("[wx] %dF code=%d hi=%d lo=%d hours=%d\n", n.tempF, n.code, n.hiF, n.loF, n.nHourly);

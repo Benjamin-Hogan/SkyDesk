@@ -25,6 +25,9 @@ PlatformIO. All data sources are keyless.
 | Plane map (v2) | `docs/08-plane-map.md`, `docs/mockups/map_screen.py`, `tools/basemap/make_basemap.py` |
 | Plane map v3 (focus, leader, cycle, strip) | `docs/09-map-v3.md`, `firmware/map_model.cpp` (pure, host-tested) |
 | Rain radar (v3) | `docs/10-rain-radar.md`, `docs/mockups/radar_screen.py` + `radar_data.py`, `tools/radar/` |
+| Today's Sky (3.0): pass log, Today page, chip arbiter | `docs/11-today.md`, `docs/mockups/today_screen.py`, `firmware/spotter.cpp` + `chip.cpp` (pure, host-tested), `today_store.cpp` |
+| Setup portal (3.0): phone setup, WiFi/location/TZ, recovery | `docs/12-setup-portal.md`, `docs/mockups/portal_screen.py` + `portal/index.html` (served byte-for-byte: `python tools/portal/embed_page.py` regenerates `firmware/portal_page.cpp`), `firmware/setup_model.cpp` (pure, host-tested), `portal.cpp` |
+| What 3.0 builds and why | `docs/design-review/3.0-feature-council.md` |
 
 ## Build & verify
 - Compile: `pio run` (no device needed). This is the default check for every change.
@@ -71,7 +74,9 @@ PlatformIO. All data sources are keyless.
   don't use anti-aliased calls (`drawWideLine`, smooth `drawArc`).
 - Colors come from `COL_*` in `config.h`. Keep them in sync with `screens.py`.
   `COL_PLANE` (amber) is reserved for the aircraft and "look here".
-- Secrets go in `include/secrets.h` (gitignored). Never commit real WiFi credentials.
+- Secrets go in `include/secrets.h` (gitignored). Never commit real WiFi credentials. Since 3.0 they are only
+  the *defaults*: the setup portal (docs/12) saves WiFi, location and time zone to NVS, and those win.
+  Code reads the location through `obs()` (observer.h), never `OBS_LAT`/`OBS_LON` directly.
 
 ## Privacy & politeness
 - Never display a GA aircraft owner's name. Registries list private individuals.

@@ -198,10 +198,18 @@ def wx_icon(t, cx, cy, s, kind, day, bg):
 def weather(t: TFT, d: dict):
     t.fillScreen(BG)
     # Header: date left; status only when degraded (no permanent clutter)
-    t.drawString(d["date"], 10, 17, "f2", MUTED)
+    dw = t.drawString(d["date"], 10, 17, "f2", MUTED)
+    status_left = 320
     if d.get("stale"):
         w = t.drawString(d["stale"], 296, 17, "f2", WARN, "R")
         t.fillCircle(305, 12, 3, WARN)
+        status_left = 296 - w
+    if d.get("overhead") is not None:     # the Today entry (docs/11): header row y 0-36 is its target
+        entry = __import__("today_screen").header_entry_fit(t, d["overhead"], 10 + dw, status_left)
+        if entry:                           # drawSep: the date and the count don't run together
+            dot(t, 10 + dw + 8, 12, DIM)
+            ow = t.drawString(entry, 10 + dw + 16, 17, "f2", MUTED)
+            chevron(t, 10 + dw + 16 + ow + 5, 12, MUTED)
 
     # Hero: icon + temperature + condition
     hero_c = MUTED if d.get("stale") else TEXT
@@ -254,6 +262,9 @@ def weather(t: TFT, d: dict):
 
     # Traffic chip (tappable -> chevron)
     t.fillRoundRect(6, 215, 308, 23, 11, PANEL2)
+    if d.get("passed"):                   # chipMessage() row 2 (docs/11-today.md)
+        __import__("today_screen").passed_chip(t, d["passed"])
+        return
     radar_ok = d["traffic"] is not None
     plane_glyph(t, 21, 226, 45, 0.55, PLANE if radar_ok else DIM)
     if radar_ok:
@@ -607,11 +618,12 @@ HOURLY_NIGHT = [dict(h=h, kind="clear", t=tt, pop=0, day=False) for h, tt in
 SCENARIOS = {
     "weather": (weather, dict(date="THU  SEP 24", kind="partly", day=True, temp=94, cond="Mostly sunny",
                               time="3:42", ampm="PM", sun_evt="Sunset 6:20", feels=97, hi=99, lo=76, hum=18,
-                              wind="NW 7", hourly=HOURLY_DAY, traffic=("4", "737-800  5.2 mi W"))),
+                              wind="NW 7", hourly=HOURLY_DAY, traffic=("4", "737-800  5.2 mi W"),
+                              overhead=31)),
     "weather-degraded": (weather, dict(date="THU  SEP 24", kind="partly", day=False, temp=77, cond="Partly cloudy",
                                        time="9:18", ampm="PM", sun_evt="Sunrise 6:17", feels=77, hi=86, lo=72, hum=49,
                                        wind="N 4", hourly=HOURLY_NIGHT, traffic=None, radar_retry="retrying in 30 s",
-                                       stale="Updated 47 min ago")),
+                                       stale="Updated 47 min ago", overhead=104)),
     "plane-airliner-multi": (plane, aircraft(45, 2.05, 12400, 20, 250, 1800, op="Southwest", type="737-800",
                                              sub=["WN 2208", "N8563Z"], pill=("+1 more", PLANE),
                                              route=dict(kind="ok", o="PHX", d="DEN", oc="Phoenix", dc="Denver"),
@@ -683,6 +695,19 @@ def main():
     import radar_screen  # v3 rain radar (docs/10-rain-radar.md)
     scen.update(radar_screen.SCENARIOS)
     scen.update(WEATHER_V3)
+    import today_screen  # 3.0 Today's Sky (docs/11-today.md)
+    import portal_screen  # 3.0 setup portal (docs/12-setup-portal.md)
+    scen.update(portal_screen.SCENARIOS)
+    scen.update(today_screen.SCENARIOS)
+    scen["today-busy-night"] = (radar_screen.night(today_screen.today), today_screen.BASE)
+    scen["weather-header-entry-night"] = (radar_screen.night(weather), SCENARIOS["weather"][1])
+    # chip-passed focus (docs/09 focus order): the chip tap renders like M7's after-pop focus
+    # while the plane is in traffic, and like the normal map once it has left
+    scen["map-from-passed"] = map_screen.SCENARIOS_V3["map-after-pop"] if "map-after-pop" in map_screen.SCENARIOS_V3         else map_screen.SCENARIOS["map-after-pop"]
+    _z1 = map_screen.SCENARIOS["map-z1"]
+    scen["map-from-passed-gone"] = (_z1[0], lambda: dict(_z1[1]() if callable(_z1[1]) else _z1[1],
+                                                         gone="BA A350-1000"))
+    scen["weather-rain-cue-zones"] = (today_screen.touch_overlay(weather), WEATHER_V3["weather-rain-cue"][1])
     scen["weather-rain-cue-night"] = (radar_screen.night(weather), WEATHER_V3["weather-rain-cue"][1])
     for name, (fn, data) in scen.items():
         if flt and flt not in name:

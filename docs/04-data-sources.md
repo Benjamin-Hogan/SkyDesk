@@ -52,7 +52,7 @@ Budget for 60 aircraft = ~36 KB streamed; **filtered** doc stays < 8 KB.
 | `r` | string | Registration (`N429WN`) | May be missing |
 | `t` | string | ICAO type designator (`B737`) | May be missing |
 | `desc` | string | Type description (`BOEING 737-700`) | adsb.fi only; uppercase |
-| `ownOp` | string | Owner/operator (`SOUTHWEST AIRLINES CO`) | adsb.fi only |
+| `ownOp` | string | Owner/operator (`SOUTHWEST AIRLINES CO`) | adsb.fi only. **Not parsed since 3.0** (RAM; it names private owners) |
 | `alt_baro` | number **or** `"ground"` | Pressure altitude, ft | Check type before reading! |
 | `alt_geom` | number | GNSS altitude, ft | Prefer for geometry when present |
 | `gs` | number | Ground speed, kt | |
@@ -71,7 +71,7 @@ The per-object filter uses the same fields as the old whole-document filter:
 JsonDocument f;
 for (const char* k : {"aircraft", "ac"}) {
   JsonObject a = f[k].add<JsonObject>();
-  for (const char* fld : {"hex","flight","r","t","desc","ownOp","alt_baro",
+  for (const char* fld : {"hex","flight","r","t","desc","alt_baro",
        "alt_geom","gs","track","baro_rate","geom_rate","lat","lon","seen_pos",
        "category"}) a[fld] = true;
 }
@@ -127,7 +127,7 @@ Math is in `05-sky-geometry.md`.
 
 ### Display names
 - Operator: prefer `flightroute.airline.name`; else `registered_owner`; else
-  `ownOp` (title-cased); else "Private".
+  the airline table (by callsign); else "Private". (`ownOp` is no longer used, since 3.0.)
 - Type: `manufacturer` + friendly model from the **built-in type table**
   (`firmware/aircraft_types.cpp`, ICAO designator → "Boeing 737-700"). The
   adsbdb `type` string (`737NG 7H4/W`) is too cryptic for display. Fallback order:

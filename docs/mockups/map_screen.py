@@ -251,6 +251,10 @@ def map_screen(t, d):
 
     # 1. basemap + overhead-zone tint (index 0 -> M_ZONE inside 3 nm)
     bm = Image.open(S.OUT / f"basemap-z{zi}.png")
+    offgate = d.get("offgate")              # 3.0 portal (docs/12): saved location far from the build
+    if offgate:                             # centre - no streets / towns / airports, just you + planes
+        bm = Image.new("P", bm.size, M_BG)
+        bm.putpalette(Image.open(S.OUT / f"basemap-z{zi}.png").getpalette())
     px = bm.load()
     zr = 3.0 * ppn
     for y in range(max(0, int(MAP_CY - zr)), min(240, int(MAP_CY + zr) + 1)):
@@ -323,7 +327,7 @@ def map_screen(t, d):
     if focus and focus.get("pop_pt"):                                  # the pop point is never covered
         qx, qy = proj(*focus["pop_pt"], ppn)
         taken.append((qx - 5, qy - 5, qx + 5, qy + 5))
-    for code, lat, lon in AIRPORTS:                                    # airports before tags
+    for code, lat, lon in ([] if offgate else AIRPORTS):              # airports before tags
         x, y = proj(lat, lon, ppn)
         w = t.textWidth(code, "glcd")
         r = (x + 5, y - 4, x + 6 + w, y + 5)
@@ -381,7 +385,7 @@ def map_screen(t, d):
                 tags.append((a, best[1], best[2], best[3]))
                 for b in best[4]:
                     b["hidden"] = True
-    for name, lat, lon, city in TOWNS:
+    for name, lat, lon, city in ([] if offgate else TOWNS):
         if not city and zi == 2:
             continue
         x, y = proj(lat, lon, ppn)
@@ -496,7 +500,7 @@ def map_screen(t, d):
     t.drawString(lab, 316 - zw // 2, 21, "f2", C[M_TEXT], "C")
     t.fillTriangle(160, 3, 155, 12, 165, 12, C[M_MUTED])
     t.drawString("N", 160, 24, "glcd", C[M_MUTED], "C")
-    t.drawString("(c) OSM", 4, STRIP_Y - 4, "glcd", C[M_DIM])
+    t.drawString(f"No streets here - built for {offgate}" if offgate else "(c) OSM", 4, STRIP_Y - 4, "glcd", C[M_DIM])
 
     # 8. info strip (tap = open the card for the focus plane)
     t.fillRect(0, STRIP_Y, 320, 240 - STRIP_Y, C[M_PANEL])
@@ -507,6 +511,10 @@ def map_screen(t, d):
     if state == "offline-cleared":
         t.drawString("No live traffic", 10, 231, "f2", C[M_WARN])
         t.drawString("retrying in 20 s", 310, 231, "f2", C[M_MUTED], "R")
+        return
+    if d.get("gone"):                  # 3.0: the chip's passed plane has left the traffic (4 s)
+        t.drawString(d["gone"], 10, 231, "f2", C[M_MUTED])
+        t.drawString("out of range", 310, 231, "f2", C[M_MUTED], "R")
         return
     if not focus:
         t.drawString(f"Nothing within {ZOOM_MI[zi]} mi", 10, 231, "f2", C[M_MUTED])

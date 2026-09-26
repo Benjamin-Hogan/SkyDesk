@@ -9,6 +9,7 @@
 int httpGetJson(const char *url, JsonDocument &doc, const JsonDocument &filter, bool &jsonOk);
 
 #include "byte_source.h"
+#include "config.h"
 // Streamed variant: on HTTP 200, `fn(src, ctx)` consumes the body through a
 // ByteSource (timed peek/read). Returns the HTTP status; `fnOk` = fn's result.
 int httpGetStreamed(const char *url, bool (*fn)(ByteSource &src, void *ctx), void *ctx, bool &fnOk);
@@ -26,4 +27,5 @@ const char *httpLastJsonError();
 // Returns the HTTP status, a negative HTTPClient error, or HTTP_BODY_TOO_BIG.
 #define HTTP_BODY_TOO_BIG (-3000)
 int httpGetBody(const char *url, bool (*sink)(const uint8_t *buf, size_t n, void *ctx), void *ctx,
-                size_t maxBytes, size_t &got, size_t &expected);
+                size_t maxBytes, size_t &got, size_t &expected,
+                uint32_t timeoutMs = HTTP_TIMEOUT_MS);

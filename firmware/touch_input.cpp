@@ -112,6 +112,15 @@ bool touchRaw(int16_t &rx, int16_t &ry) {
   return z >= TOUCH_PRESSURE_MIN;
 }
 
+bool touchPoint(int16_t &x, int16_t &y) {
+  int16_t rx, ry;
+  if (!touchRaw(rx, ry)) return false;
+  const Settings &s = settings();
+  x = mapAxis(rx, s.tXMin, s.tXMax, SCREEN_W);
+  y = mapAxis(ry, s.tYMin, s.tYMax, SCREEN_H);
+  return true;
+}
+
 TouchEvent touchPoll(uint32_t now) {
   TouchEvent e{TouchEvt::None, g_x, g_y};
   int16_t rx, ry;

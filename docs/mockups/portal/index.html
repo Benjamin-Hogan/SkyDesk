@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SkyDesk setup</title>
+<style>
+:root{--bg:#0A1120;--panel:#131C2E;--panel2:#1C2740;--hair:#2A3752;--text:#EEF2F8;--muted:#9AA6BE;--dim:#7886A2;--amber:#FFB02E;--warn:#FF8A3D;--ok:#3DDC84}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:17px/1.35 -apple-system,system-ui,sans-serif;padding:16px 16px 40px;max-width:520px}
+h1{font-size:24px;margin:4px 0 2px}
+.sub{color:var(--muted);margin:0 0 18px;font-size:15px}
+section{background:var(--panel);border-radius:14px;padding:14px;margin:0 0 14px}
+h2{font-size:13px;letter-spacing:.06em;color:var(--dim);margin:0 0 10px;font-weight:600}
+label{display:block;font-size:15px;color:var(--muted);margin:10px 0 6px}
+input,select{width:100%;font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--hair);border-radius:10px;padding:12px;min-height:46px}
+input:focus,select:focus{outline:2px solid var(--amber);border-color:transparent}
+.bad{outline:2px solid var(--warn)!important;border-color:transparent}
+.note{font-size:14px;color:var(--muted);margin:8px 0 0}
+.note.warn{color:var(--warn)}
+.note.ok{color:var(--ok)}
+.linkbtn{background:none;border:0;color:var(--amber);font:inherit;font-size:15px;padding:0;min-height:44px}
+.compass{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}
+.compass button{min-height:46px;border-radius:10px;border:1px solid var(--hair);background:var(--panel2);color:var(--text);font:inherit;font-weight:600}
+.compass button[aria-pressed=true]{background:var(--amber);color:var(--bg);border-color:var(--amber)}
+.save{width:100%;min-height:52px;border:0;border-radius:14px;background:var(--amber);color:var(--bg);font:inherit;font-weight:700;font-size:18px}
+.save:disabled{opacity:.5}
+.err{color:var(--warn);font-size:15px;margin:0 0 12px}
+.err:empty{display:none}
+#done,#nostate{display:none;text-align:center;padding-top:40px}
+#done h1,#nostate h1{margin-bottom:10px}
+.pw{position:relative}
+.pw input{padding-right:72px}
+.pw button{position:absolute;right:2px;top:1px;min-height:44px;min-width:64px;background:none;border:0;color:var(--muted);font:inherit;font-size:15px}
+</style></head><body>
+<div id="form">
+<h1>SkyDesk setup</h1>
+<p class="sub">Change what you need, then Save. SkyDesk restarts and uses it.</p>
+
+<section><h2>WIFI NETWORK</h2>
+<label for="net">Network</label>
+<select id="net"></select>
+<p class="note" id="netNote">SkyDesk sees 2.4 GHz networks only.</p>
+<div id="otherBox" style="display:none"><label for="ssid">Network name</label><input id="ssid" maxlength="32" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+<button type="button" class="linkbtn" id="rescan">Scan again</button>
+<label for="pass">Password</label>
+<div class="pw"><input id="pass" type="password" maxlength="63" autocapitalize="off" autocorrect="off" spellcheck="false"><button type="button" id="show" aria-label="Show password">Show</button></div>
+<p class="note" id="passNote"></p>
+</section>
+
+<section><h2>LOCATION</h2>
+<label for="loc">Latitude, longitude</label>
+<input id="loc" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="33.35280, -111.78900">
+<p class="note">Decimal, or like 33 21 10 N 111 47 20 W</p>
+<p class="note" id="locNote" role="status"></p>
+<label for="place">Name (optional)</label>
+<input id="place" maxlength="20">
+<button type="button" class="linkbtn" id="reset">Reset to the map center</button>
+</section>
+
+<section><h2>TIME ZONE</h2>
+<label for="tz">Time zone</label>
+<select id="tz"></select>
+<p class="note" id="tzNote"></p>
+</section>
+
+<section><h2>WHICH WAY DO YOU FACE?</h2>
+<p class="note" style="margin:0 0 8px">Stand where you watch SkyDesk. Compass app: the heading it shows.</p>
+<div class="compass" id="compass"></div>
+<label for="deg">Or degrees (0 = north)</label>
+<input id="deg" inputmode="numeric" pattern="[0-9]*" maxlength="3">
+</section>
+
+<p class="err" id="err" role="alert"></p>
+<button class="save" id="save">Save and restart</button>
+</div>
+
+<div id="done"><h1>Saved</h1><p class="sub" id="doneMsg"></p></div>
+<div id="nostate"><h1>Can't read SkyDesk's settings</h1><p class="sub">Stay on SkyDesk's WiFi and try again.</p>
+<button class="save" onclick="location.reload()">Reload</button></div>
+
+<script>
+/*STATE*/
+var SAMPLE={ssid:"HomeNet",hasPass:true,nets:[["HomeNet",-48],["Neighbor-2G",-71],["xfinitywifi",-80]],
+ lat:33.35280,lon:-111.78900,place:"Gilbert, AZ",buildLat:33.35280,buildLon:-111.78900,buildPlace:"Gilbert, AZ",
+ gateMi:0.1,radarGateMi:1.0,tz:"az",tzs:[["az","Arizona (no DST)"],["pt","Pacific"],["mt","Mountain"],["ct","Central"],["et","Eastern"],["ak","Alaska"],["hi","Hawaii"]],facing:0};
+var $=function(i){return document.getElementById(i)};
+function parseLoc(t){ // == firmware setupParseLocation(): decimal, or D M S with N/S/E/W; any symbol separates
+ t=t.trim().toUpperCase().replace(/[^0-9.+\-NSEW ,]/g,' ').replace(/\s+/g,' ');
+ var m=t.match(/^([-+]?\d+(?:\.\d+)?)\s*,?\s*([-+]?\d+(?:\.\d+)?)$/);
+ if(m)return ok(+m[1],+m[2]);
+ var p=t.match(/^(\d+(?:\.\d+)?)(?: (\d+(?:\.\d+)?))?(?: (\d+(?:\.\d+)?))? ?([NS])[ ,]*(\d+(?:\.\d+)?)(?: (\d+(?:\.\d+)?))?(?: (\d+(?:\.\d+)?))? ?([EW])$/);
+ if(!p)return null;
+ if((p[2]||0)>=60||(p[3]||0)>=60||(p[6]||0)>=60||(p[7]||0)>=60)return null;
+ var dms=function(d,mi,s){return +d+(+(mi||0))/60+(+(s||0))/3600};
+ return ok(dms(p[1],p[2],p[3])*(p[4]=='S'?-1:1),dms(p[5],p[6],p[7])*(p[8]=='W'?-1:1));
+ function ok(a,b){return (a>=-90&&a<=90&&b>=-180&&b<=180)?[a,b]:null}
+}
+function miles(a,b,c,d){var r=Math.PI/180,x=Math.sin((c-a)*r/2),y=Math.sin((d-b)*r/2);
+ var h=x*x+Math.cos(a*r)*Math.cos(c*r)*y*y;return 3958.8*2*Math.asin(Math.sqrt(h))}
+function mi(d){return d<10?d.toFixed(1):Math.round(d).toLocaleString('en-US')}
+function tzGuess(lat,lon){ // a hint only, and only inside the US (London gets none)
+ if(lat>18&&lat<23&&lon>-161&&lon<-154)return'hi';if(lat>51&&lat<72&&lon>-170&&lon<-129)return'ak';
+ if(!(lat>24&&lat<50&&lon>-125&&lon<-66))return'';
+ if(lat>31.3&&lat<37&&lon>-114.85&&lon<-109.04)return'az';   // Arizona first: Yuma is not Pacific
+ if(lon<-114.5)return'pt';if(lon<-102)return'mt';if(lon<-86.5)return'ct';return'et'}
+function locNote(){var n=$('loc'),v=parseLoc(n.value),e=$('locNote'),tzn=$('tzNote');tzn.textContent='';
+ if(!n.value.trim()){e.className='note';e.textContent='';return}
+ if(!v){e.className='note warn';e.textContent='Not a location. Try 33.35280, -111.78900';return}
+ var d=miles(S.buildLat,S.buildLon,v[0],v[1]),at=v[0].toFixed(5)+', '+v[1].toFixed(5);
+ // the maps are drawn for one place: say what works here and what is off, never "too far" alone
+ if(d<=S.gateMi){e.className='note ok';e.textContent='Reads as '+at+' \u00B7 '+mi(d)+' mi from the map center. Everything works here.'}
+ else if(d<=S.radarGateMi){e.className='note warn';e.textContent='Reads as '+at+' \u00B7 '+mi(d)+' mi from the map center. '+
+  'Works here: weather, plane cards, radar. Off here: streets on the plane map (it is drawn for a spot '+mi(d)+' mi away).'}
+ else{e.className='note warn';e.textContent='Reads as '+at+' \u00B7 '+mi(d)+' mi from '+S.buildPlace+'. '+
+  'Works here: weather, plane cards, and the plane map without streets. Off here: streets on the map and the radar (built for '+S.buildPlace+').';
+  if($('place').value==S.buildPlace){$('place').value='';$('place').placeholder='Name this place'}}
+ if(d<=S.radarGateMi&&!$('place').value.trim()){$('place').value=S.buildPlace;$('place').placeholder=S.buildPlace}
+ var g=tzGuess(v[0],v[1]);if(g&&g!=$('tz').value){var z=S.tzs.filter(function(t){return t[0]==g})[0];if(z)tzn.textContent='Looks like '+z[1]+'.'}}
+function facing(v){$('deg').value=v;[].forEach.call($('compass').children,function(b){b.setAttribute('aria-pressed',+b.dataset.d==v)})}
+function netChange(){var other=!$('net').value;$('otherBox').style.display=other?'block':'none';passNote()}
+function build(){
+ fillNets();
+ $('rescan').onclick=rescan;
+ $('show').onclick=function(){var p=$('pass');p.type=p.type=='password'?'text':'password';this.textContent=p.type=='password'?'Show':'Hide'};
+ $('loc').value=S.lat.toFixed(5)+', '+S.lon.toFixed(5);$('loc').oninput=locNote;
+ $('place').value=S.place;$('place').placeholder=S.buildPlace;
+ $('reset').onclick=function(){$('loc').value=S.buildLat.toFixed(5)+', '+S.buildLon.toFixed(5);$('place').value=S.buildPlace;locNote()};
+ var tz=$('tz');tz.innerHTML='';S.tzs.forEach(function(z){var o=document.createElement('option');o.value=z[0];o.textContent=z[1];tz.appendChild(o)});tz.value=S.tz;
+ tz.onchange=locNote;locNote();
+ var c=$('compass');c.innerHTML='';['N','NE','E','SE','S','SW','W','NW'].forEach(function(w,i){var b=document.createElement('button');b.type='button';b.textContent=w;b.dataset.d=i*45;b.onclick=function(){facing(i*45)};c.appendChild(b)});
+ $('deg').oninput=function(){var v=parseInt(this.value,10);[].forEach.call(c.children,function(b){b.setAttribute('aria-pressed',+b.dataset.d==v)})};
+ facing(S.facing);
+ $('save').onclick=save;
+}
+function fillNets(keep){ // keep = the current pick while re-scanning (edits elsewhere are untouched)
+ var net=$('net'),seen={};net.innerHTML='';
+ S.nets.forEach(function(n){if(seen[n[0]])return;seen[n[0]]=1;   // mesh: the strongest copy only (list is strongest first)
+  var o=document.createElement('option');o.value=n[0];o.textContent=n[0]+(n[1]<-75?'  (weak)':'');net.appendChild(o)});
+ if(S.ssid&&!seen[S.ssid]){var o=document.createElement('option');o.value=S.ssid;o.textContent=S.ssid+'  (not seen now)';net.insertBefore(o,net.firstChild)}
+ var oth=document.createElement('option');oth.value='';oth.textContent='Other\u2026';net.appendChild(oth);
+ var want=keep!==undefined?keep:(S.ssid||(S.nets[0]?S.nets[0][0]:''));
+ net.value=want;if(net.value!==want)net.value='';net.onchange=netChange;netChange();
+ $('netNote').textContent=S.nets.length?'SkyDesk sees 2.4 GHz networks only.':'No networks found. SkyDesk sees 2.4 GHz networks only.';
+}
+function rescan(){ // new list only: the password, location, time zone and facing edits stay
+ var b=$('rescan'),keep=$('net').value;b.disabled=true;b.textContent='Scanning\u2026';
+ var done=function(){b.disabled=false;b.textContent='Scan again'};
+ if(location.protocol=='file:'||location.hostname=='127.0.0.1'){setTimeout(function(){fillNets(keep);done()},600);return}   // mock only
+ var ac=window.AbortController?new AbortController():null;if(ac)setTimeout(function(){ac.abort()},8000);
+ fetch('/scan',ac?{signal:ac.signal}:{}).then(function(r){return r.json()}).then(function(j){S.nets=j.nets;fillNets(keep);done()}).catch(done);
+}
+function passNote(){var same=!!S.ssid&&$('net').value==S.ssid&&S.hasPass;$('passNote').textContent=same?'Leave blank to keep the saved password.':'';$('pass').placeholder=same?'Unchanged':'Password';}
+function fail(id,msg){$('err').textContent=msg;var f=$(id);f.classList.add('bad');f.scrollIntoView({block:'center'});f.focus();return false}
+function save(){
+ [].forEach.call(document.querySelectorAll('.bad'),function(x){x.classList.remove('bad')});$('err').textContent='';
+ var ssid=$('net').value||$('ssid').value.trim(),pass=$('pass').value,loc=parseLoc($('loc').value),deg=parseInt($('deg').value,10);
+ if(!ssid||ssid.length>32)return fail($('net').value?'net':'ssid','Pick a network, or type its name.');
+ if(pass&&(pass.length<8||pass.length>63))return fail('pass','WiFi passwords are 8 to 63 characters.');
+ if(!pass&&!(ssid==S.ssid&&S.hasPass))return fail('pass','Enter the password for '+ssid+'.');
+ if(!loc)return fail('loc','The location isn\'t readable.');
+ if(!(deg>=0&&deg<=359))return fail('deg','Facing is 0 to 359 degrees.');
+ var body='ssid='+encodeURIComponent(ssid)+'&pass='+encodeURIComponent(pass)+'&lat='+loc[0].toFixed(5)+'&lon='+loc[1].toFixed(5)+
+  '&place='+encodeURIComponent($('place').value.trim())+'&tz='+$('tz').value+'&facing='+deg;
+ $('save').disabled=true;
+ fetch('/save',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:body}).then(function(r){return r.json()})
+ .then(function(j){if(!j.ok){$('save').disabled=false;$('err').textContent=j.msg;return}
+  $('form').style.display='none';$('done').style.display='block';$('doneMsg').textContent=j.msg})
+ .catch(function(){$('save').disabled=false;$('err').textContent='SkyDesk didn\'t answer. Is the phone still on its WiFi?'});
+}
+function mockState(h){                           // design-review states (file:// only - never on the device)
+ if(h=='#far'){$('loc').value='40\u00B044\u201955\u201DN 73\u00B059\u201911\u201DW';locNote()}
+ if(h=='#near'){$('loc').value='33.3586, -111.7890';locNote()}
+ if(h=='#other'){$('net').value='';netChange();$('ssid').value='Casa-Guest'}
+ if(h=='#empty'){S.nets=[];S.ssid='';build()}
+ if(h=='#error'){$('loc').value='33.3, banana';locNote();$('net').value='Neighbor-2G';passNote();save()}
+ if(h=='#longpw'){$('show').click();$('pass').value='correct horse battery staple 2024'}
+ if(h=='#nostate'){$('form').style.display='none';$('nostate').style.display='block'}
+ if(h=='#done'){$('form').style.display='none';$('done').style.display='block';
+  $('doneMsg').textContent='SkyDesk is restarting and joining HomeNet. You can close this page. If it can\'t join, tap Set up from phone on SkyDesk.'}
+}
+if(typeof S=='undefined'){                       // the firmware inlines S at STATE above; only a mock opened from disk lacks it
+ if(location.protocol=='file:'||location.hostname=='127.0.0.1'){var S=SAMPLE;build();mockState(location.hash)}   // the device is 192.168.4.1
+ else{$('form').style.display='none';$('nostate').style.display='block'}
+}else{build();fetch('/opened',{method:'POST'}).catch(function(){})}   // the device shows "Page open" only now (round 2)
+</script></body></html>

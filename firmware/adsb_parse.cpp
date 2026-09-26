@@ -4,6 +4,7 @@
 // many aircraft the radius holds. (Parsing the whole document ran out of heap
 // on-device at an 18 nm radius while a TLS session was open: "JSON NoMemory".)
 #include "adsb_parse.h"
+#include "observer.h"
 #include "geo.h"
 
 #include <algorithm>
@@ -24,7 +25,7 @@ namespace {
 
 // Filter for ONE aircraft object.
 void buildFilter(JsonDocument &f) {
-  static const char *fields[] = {"hex", "flight", "r", "t", "desc", "ownOp", "alt_baro",
+  static const char *fields[] = {"hex", "flight", "r", "t", "desc", "alt_baro",
                                  "alt_geom", "gs", "track", "baro_rate", "geom_rate",
                                  "lat", "lon", "seen_pos", "category"};
   for (const char *k : fields) f[k] = true;
@@ -66,7 +67,6 @@ bool parseOne(JsonObjectConst o, Aircraft &a) {
   copyTrim(a.reg, sizeof(a.reg), o["r"] | "");
   copyTrim(a.type, sizeof(a.type), o["t"] | "");
   copyTrim(a.desc, sizeof(a.desc), o["desc"] | "");
-  copyTrim(a.ownOp, sizeof(a.ownOp), o["ownOp"] | "");
   copyTrim(a.category, sizeof(a.category), o["category"] | "");
   a.lat = o["lat"].as<double>();
   a.lon = o["lon"].as<double>();
@@ -84,10 +84,10 @@ bool parseOne(JsonObjectConst o, Aircraft &a) {
   a.seenPos = o["seen_pos"] | 0.0f;
 
   double d, az;
-  geo::distBearing({OBS_LAT, OBS_LON}, {a.lat, a.lon}, d, az);
+  geo::distBearing({obs().lat, obs().lon}, {a.lat, a.lon}, d, az);
   a.distNm = d / geo::M_PER_NM;
   a.azDeg = az;
-  a.elDeg = a.onGround ? -10 : geo::elevation(d, a.altFt, OBS_ELEV_FT);
+  a.elDeg = a.onGround ? -10 : geo::elevation(d, a.altFt, obs().elevFt);
   return true;
 }
 

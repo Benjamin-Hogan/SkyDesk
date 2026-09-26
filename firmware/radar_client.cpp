@@ -1,4 +1,5 @@
 #include "radar_client.h"
+#include "observer.h"
 #include <esp_heap_caps.h>
 #include "app_state.h"
 #include "config.h"
@@ -178,13 +179,24 @@ bool sinkToFile(const uint8_t *buf, size_t n, void *ctx) {
   return ok;
 }
 
+// The convert is several seconds of core-0 work (4.7 s in V2; slower since the SD card
+// runs in SHARED_SPI mode). Without a yield, IDLE0 starves and the task watchdog resets
+// the board (3.0 field log). 1 ms every 16 rows, holding sdLock is fine (the UI uses
+// sdLock(0) and skips a frame).
+void yieldSometimes() {
+  static uint8_t n = 0;
+  if (++n % 16 == 0) vTaskDelay(1);
+}
+
 class FileRows : public RadarRows {
  public:
   explicit FileRows(File32 &f) : f_(f) {}
   bool read(uint16_t y, uint8_t *row) override {
+    yieldSometimes();
     return f_.seekSet((uint32_t)y * RADAR_W) && f_.read(row, RADAR_W) == RADAR_W;
   }
   bool write(uint16_t y, const uint8_t *row) override {
+    yieldSometimes();
     return f_.seekSet((uint32_t)y * RADAR_W) && f_.write(row, RADAR_W) == RADAR_W;
   }
 
@@ -219,6 +231,7 @@ Conv convertWith(Work &w, uint32_t valid) {
   File32 lv = sdFs().open(RADAR_DIR "/lv.tmp", O_WRONLY | O_CREAT | O_TRUNC);
   bool ok = (bool)lv;
   for (uint16_t y = 0; ok && y < RADAR_H; y++) {
+    yieldSometimes();
     for (uint8_t p = 0; ok && p < 4; p++) {
       uint8_t step;
       const uint32_t off = tiffRowOffset(ti, p, y, step);
@@ -326,10 +339,13 @@ Conv convert(uint32_t valid) {
 }
 
 Conv fetchFrame(uint32_t valid) {
-  const double coslat = cos(OBS_LAT * DEG_TO_RAD);
+  // The frame must line up with the radar basemap and clutter mask: the BUILD location
+  // (radar only runs inside SETUP_RADAR_GATE_MI of it, docs/12).
+  const double cLat = obsBuildLat(), cLon = obsBuildLon();
+  const double coslat = cos(cLat * DEG_TO_RAD);
   const double k = RADAR_PPN * 60.0;
-  const double west = OBS_LON - RADAR_CX / (k * coslat), east = OBS_LON + (RADAR_W - RADAR_CX) / (k * coslat);
-  const double north = OBS_LAT + RADAR_CY / k, south = OBS_LAT - (RADAR_H - RADAR_CY) / k;
+  const double west = cLon - RADAR_CX / (k * coslat), east = cLon + (RADAR_W - RADAR_CX) / (k * coslat);
+  const double north = cLat + RADAR_CY / k, south = cLat - (RADAR_H - RADAR_CY) / k;
   char iso[24], url[420];
   isoUtc(valid, iso, sizeof(iso));
   snprintf(url, sizeof(url),
@@ -346,7 +362,8 @@ Conv fetchFrame(uint32_t valid) {
     return Conv::Failed;
   }
   size_t got, expected;
-  const int code = httpGetBody(url, sinkToFile, &f, 400000, got, expected);
+  // 15 s: IEM renders a WMS frame on request; a busy moment can exceed the 7 s default.
+  const int code = httpGetBody(url, sinkToFile, &f, 400000, got, expected, 15000);
   sdLock(UINT32_MAX);
   f.close();
   sdUnlock();
@@ -416,7 +433,7 @@ void radarClientInit() {
 }
 
 bool radarService(bool screenOpen, bool wetHint) {
-  if (!g_st.sdOk) return false;
+  if (!g_st.sdOk || !obsInRadarGate()) return false;    // docs/12: frames only fit the build location
   if (g_nDoomed && appRadarAcked() >= g_doomVersion) {
     sdLock(UINT32_MAX);
     purgeDoomed();

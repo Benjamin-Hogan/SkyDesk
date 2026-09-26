@@ -1,4 +1,5 @@
 #include "map_model.h"
+#include "observer.h"
 #include "geo.h"
 
 #include <math.h>
@@ -11,9 +12,14 @@ constexpr uint32_t TRAIL_EXPIRE_MS = 60000;
 }  // namespace
 
 void mapProject(double lat, double lon, float pxPerNm, float &x, float &y) {
-  const double coslat = cos(OBS_LAT * DEG_TO_RAD);
-  x = MAP_CX + (float)((lon - OBS_LON) * 60.0 * coslat * pxPerNm);
-  y = MAP_CY - (float)((lat - OBS_LAT) * 60.0 * pxPerNm);
+  // The basemaps are drawn around the BUILD location: project around it while the saved
+  // location is within the street gate (<= 2 px off); off the gate there are no streets,
+  // so the map centres on the real observer (docs/12).
+  const bool built = obsInGate();
+  const double cLat = built ? obsBuildLat() : obs().lat, cLon = built ? obsBuildLon() : obs().lon;
+  const double coslat = cos(cLat * DEG_TO_RAD);
+  x = MAP_CX + (float)((lon - cLon) * 60.0 * coslat * pxPerNm);
+  y = MAP_CY - (float)((lat - cLat) * 60.0 * pxPerNm);
 }
 
 const Trail *trailFor(const char *hex) {
@@ -53,7 +59,7 @@ void trailsUpdate(const Traffic &t, uint32_t now) {
 }
 
 bool mapQualifies(double distNm, double elDeg, double altFt) {
-  return distNm <= ENTER_RADIUS_NM && elDeg >= ENTER_MIN_ELEV_DEG && altFt - OBS_ELEV_FT >= MIN_AGL_FT;
+  return distNm <= ENTER_RADIUS_NM && elDeg >= ENTER_MIN_ELEV_DEG && altFt - obs().elevFt >= MIN_AGL_FT;
 }
 
 void mapAhead(const Aircraft &a, uint16_t secs, double &lat, double &lon) {
@@ -70,8 +76,8 @@ bool mapWillPop(const Aircraft &a, WillPop &out) {
     mapAhead(a, s, lat, lon);
     const double alt = a.altFt + a.vRateFpm * (s / 60.0);
     double d, brg;
-    geo::distBearing({OBS_LAT, OBS_LON}, {lat, lon}, d, brg);
-    if (mapQualifies(d / geo::M_PER_NM, geo::elevation(d, alt, OBS_ELEV_FT), alt)) {
+    geo::distBearing({obs().lat, obs().lon}, {lat, lon}, d, brg);
+    if (mapQualifies(d / geo::M_PER_NM, geo::elevation(d, alt, obs().elevFt), alt)) {
       out = {s, lat, lon};
       return true;
     }
@@ -84,7 +90,7 @@ uint8_t mapWillPopSecs(const Aircraft &a) {
   return mapWillPop(a, w) ? w.secs : 0;
 }
 
-int mapPickFocus(const Traffic &t, const char *sel, const char *afterPop, FocusHold &hold, bool newPoll) {
+int mapPickFocus(const Traffic &t, const char *sel, const char *afterPop, FocusHold &hold, bool newPoll, const char *chipPassed) {
   if (sel && sel[0])
     for (uint8_t i = 0; i < t.n; i++)
       if (strcmp(t.ac[i].hex, sel) == 0) return i;
@@ -117,6 +123,9 @@ int mapPickFocus(const Traffic &t, const char *sel, const char *afterPop, FocusH
   if (afterPop && afterPop[0])
     for (uint8_t i = 0; i < t.n; i++)
       if (strcmp(t.ac[i].hex, afterPop) == 0) return i;
+  if (chipPassed && chipPassed[0])                   // 3.0: the weather chip's passed plane
+    for (uint8_t i = 0; i < t.n; i++)
+      if (strcmp(t.ac[i].hex, chipPassed) == 0) return i;
   return -1;
 }
 

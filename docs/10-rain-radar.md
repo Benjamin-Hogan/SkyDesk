@@ -220,6 +220,23 @@ verified by two independent reviewers against the core's sources:
   heap, and `SD.end()`/`SD.begin()` in this core has thread-safety and use-after-free hazards.
 - Fixes: SdFat (−13 KB), mDNS off (OTA by IP, −~5 KB and a task), one shared `Traffic` copy
   (−6 KB), radar blob table in the idle ADS-B buffer (no 24 KB transient).
+- **3.0 field lessons** (a boot loop, then watchdog resets, all found on the serial log):
+  - SdFat must run in **SHARED_SPI** mode. DEDICATED_SPI leaves the SPI transaction (the core's bus
+    mutex) open after a read, owned by the reading task. Another task's next access then releases
+    a mutex it doesn't hold, which fails a FreeRTOS assert.
+  - The convert is about 5 s of core-0 work, so it **yields** 1 ms every 16 rows. Without that,
+    IDLE0 starves and the task watchdog resets the board.
+  - The download writes to SD in **2 KB, sector-aligned chunks** (multi-sector writes), and
+    frames get a 15 s read timeout. With 512 B single-sector writes in SHARED_SPI mode the card
+    drained slower than WiFi filled lwIP's buffers: heap min 2.1 KB, and every frame timed out
+    (`http -11, 0/0 bytes`), so the radar sat on `updating`. Now it's 15-17 s a frame with a heap
+    min of 9 KB.
+  - The HTTP read loops **yield and time out** when `readBytes()` returns 0 while `available()` > 0
+    (a TLS error). They used to spin.
+  - V2 measured on the device: free 63–66 KB, largest block ~35 KB, heap minimum 3.5 KB, which
+    is right at the edge. The first 3.0 build (+2 KB static) failed every TLS connection
+    (largest 32.7 KB, minimum 148 B). 3.0 now uses 4.4 KB less static RAM than V2: free
+    ~70 KB, minimum ~5.8 KB during a radar convert, 0 TLS failures in a 6-min run.
 - **Rule for future work:** measure 8-bit RAM before and after, and keep ≥ 60 KB 8-bit free at
   rest. Any feature that adds permanent RAM must pay it back elsewhere.
 

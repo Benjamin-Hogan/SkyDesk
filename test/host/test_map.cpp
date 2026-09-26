@@ -126,6 +126,14 @@ void testMap() {
     FocusHold h2{};
     CHECK(mapPickFocus(ft, "", "near01", h2, true) == 0, "focus: just-popped plane when nothing will pop");
     CHECK(mapPickFocus(ft, "", "", h2, true) == -1, "focus: nothing -> caller uses the nearest on the map");
+    // 3.0 chip-passed tier (docs/09 M1, docs/11): below just-popped, above nearest
+    CHECK(mapPickFocus(ft, "", "", h2, true, "jet250") == 1, "focus: chip-passed plane beats nearest");
+    CHECK(mapPickFocus(ft, "", "near01", h2, true, "jet250") == 0, "focus: just-popped beats chip-passed");
+    CHECK(mapPickFocus(ft, "jet999", "", h2, true, "jet250") == 2, "focus: a selection beats chip-passed");
+    CHECK(mapPickFocus(ft, "", "", h2, true, "gone01") == -1, "focus: chip-passed plane left the traffic -> normal");
+    ft.ac[2].track = 0;                                          // a will-pop plane again
+    FocusHold h3{};
+    CHECK(mapPickFocus(ft, "", "", h3, true, "jet250") == 2, "focus: will-pop beats chip-passed");
   }
   {   // M1b: idle pause capped, two stamps (v3-R3-2)
     uint32_t touch = 1000;
